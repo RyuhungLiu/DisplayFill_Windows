@@ -1,0 +1,77 @@
+# Visual Studio local state
+.vs/
+.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build output directories
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+ARM64/
+ARM64EC/
+DisplayFill_Windows/x64/
+DisplayFill_Windows/ARM64/
+DisplayFill_Windows/DisplayF.*/
+
+# C/C++ build intermediates
+*.obj
+*.iobj
+*.pdb
+*.ipdb
+*.ilk
+*.idb
+*.pch
+*.tlog
+*.lastbuildstate
+*.log
+*.recipe
+*.res
+*.aps
+*.ncb
+*.opendb
+*.opensdf
+*.sdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+
+# Generated binaries and packages
+*.exe
+*.dll
+*.lib
+*.exp
+*.appx
+*.appxbundle
+*.msix
+*.msixbundle
+*.nupkg
+
+# Test and coverage output
+TestResults/
+CoverageResults/
+*.coverage
+*.coveragexml
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.cer
+*.crt
+credentials.json
+secrets.json
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
