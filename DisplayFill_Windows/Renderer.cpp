@@ -475,24 +475,30 @@ void Renderer::Resize(int width, int height)
     CreateRenderTarget();
 }
 
-float Renderer::GetStartupBrightnessScale() const
+float Renderer::GetStartupBrightnessScale(const AppState& state) const
 {
     const ULONGLONG elapsedMs = GetTickCount64() - m_startTick;
     const float elapsedSeconds = static_cast<float>(elapsedMs) / 1000.0f;
-    if (elapsedSeconds >= kStartupBreathDurationSeconds)
+    if (state.settings.startupBreathDurationSeconds <= 0.0f || elapsedSeconds >= state.settings.startupBreathDurationSeconds)
     {
-        return kStartupBreathMaxBrightness;
+        return state.settings.startupBreathMaxBrightness;
     }
 
-    const float t = std::clamp(elapsedSeconds / kStartupBreathDurationSeconds, 0.0f, 1.0f);
+    const float t = std::clamp(elapsedSeconds / state.settings.startupBreathDurationSeconds, 0.0f, 1.0f);
     const float smoothT = t * t * (3.0f - 2.0f * t);
-    return kStartupBreathMinBrightness + (kStartupBreathMaxBrightness - kStartupBreathMinBrightness) * smoothT;
+    return state.settings.startupBreathMinBrightness +
+        (state.settings.startupBreathMaxBrightness - state.settings.startupBreathMinBrightness) * smoothT;
 }
 
-bool Renderer::IsStartupBreathingActive() const
+bool Renderer::IsStartupBreathingActive(const AppState& state) const
 {
+    if (state.settings.startupBreathDurationSeconds <= 0.0f)
+    {
+        return false;
+    }
+
     const ULONGLONG elapsedMs = GetTickCount64() - m_startTick;
-    return elapsedMs < static_cast<ULONGLONG>(kStartupBreathDurationSeconds * 1000.0f);
+    return elapsedMs < static_cast<ULONGLONG>(state.settings.startupBreathDurationSeconds * 1000.0f);
 }
 
 void Renderer::Render(const AppState& state)
@@ -528,13 +534,13 @@ void Renderer::Render(const AppState& state)
     constants->resolution[0] = static_cast<float>(state.clientWidth);
     constants->resolution[1] = static_cast<float>(state.clientHeight);
     constants->whiteLevel = state.GetWhiteLevel();
-    constants->cornerRadius = static_cast<float>(kHoleCornerRadius);
+    constants->cornerRadius = static_cast<float>(state.settings.holeCornerRadius);
     constants->holeRect[0] = static_cast<float>(state.holeRect.left);
     constants->holeRect[1] = static_cast<float>(state.holeRect.top);
     constants->holeRect[2] = static_cast<float>(state.holeRect.right);
     constants->holeRect[3] = static_cast<float>(state.holeRect.bottom);
-    constants->featherPixels = kVisualCornerFeatherPixels;
-    constants->brightnessScale = GetStartupBrightnessScale();
+    constants->featherPixels = state.settings.visualCornerFeatherPixels;
+    constants->brightnessScale = GetStartupBrightnessScale(state);
     constants->padding[0] = 0.0f;
     constants->padding[1] = 0.0f;
     m_context->Unmap(m_constantBuffer.Get(), 0);

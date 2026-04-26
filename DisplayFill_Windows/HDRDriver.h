@@ -13,6 +13,7 @@
 #include <d3d11_1.h>
 #include <d3dcompiler.h>
 #include <dxgi1_6.h>
+#include <shellapi.h>
 #include <wrl/client.h>
 
 #include <memory>
@@ -23,6 +24,7 @@
 #pragma comment(lib, "user32.lib")
 #pragma comment(lib, "kernel32.lib")
 #pragma comment(lib, "gdi32.lib")
+#pragma comment(lib, "shell32.lib")
 
 namespace hdr_driver
 {
@@ -32,6 +34,7 @@ namespace hdr_driver
 //=============================================================================
 
 constexpr wchar_t kWindowClassName[] = L"HdrScreenFillWindow";
+constexpr UINT kTrayIconMessage = WM_APP + 1;
 
 // scRGB 中 1.0 通常约等于 80 nits，程序会用 targetNits / 80 计算 HDR 白色强度。
 constexpr float kSdrReferenceWhiteNits = 80.0f;
@@ -79,6 +82,49 @@ constexpr float kStartupBreathDurationSeconds = 3.0f;
 // Ctrl+F6 全局热键 ID：切换穿透模式/非穿透模式。这个值只是内部 ID，一般不用改。
 constexpr int kHotkeyTogglePassThrough = 4001;
 
+constexpr UINT kTrayMenuOpenSettings = 5001;
+constexpr UINT kTrayMenuTogglePassThrough = 5002;
+constexpr UINT kTrayMenuBrightness600 = 5010;
+constexpr UINT kTrayMenuBrightness800 = 5011;
+constexpr UINT kTrayMenuBrightness1000 = 5012;
+constexpr UINT kTrayMenuBrightness1200 = 5013;
+constexpr UINT kTrayMenuFrame5 = 5020;
+constexpr UINT kTrayMenuFrame8 = 5021;
+constexpr UINT kTrayMenuFrame10 = 5022;
+constexpr UINT kTrayMenuFrame12 = 5023;
+constexpr UINT kTrayMenuHoverAlpha20 = 5030;
+constexpr UINT kTrayMenuHoverAlpha40 = 5031;
+constexpr UINT kTrayMenuHoverAlpha70 = 5032;
+constexpr UINT kTrayMenuLanguageZhHans = 5040;
+constexpr UINT kTrayMenuLanguageZhHant = 5041;
+constexpr UINT kTrayMenuLanguageEnUs = 5042;
+constexpr UINT kTrayMenuExit = 5099;
+
+enum class AppLanguage
+{
+    ZhHans,
+    ZhHant,
+    EnUs,
+};
+
+// 运行时设置。托盘菜单会直接修改这里的值，因此这些参数不再只依赖 constexpr。
+struct AppSettings
+{
+    float targetNits = kDefaultTargetNits;
+    float frameMarginXRatio = kFrameMarginXRatio;
+    float frameMarginYRatio = kFrameMarginYRatio;
+    int holeCornerRadius = kHoleCornerRadius;
+    float visualCornerFeatherPixels = kVisualCornerFeatherPixels;
+    BYTE normalWindowAlpha = kNormalWindowAlpha;
+    BYTE mouseHoverWindowAlpha = kMouseHoverWindowAlpha;
+    float hoverOpacityTransitionSeconds = kHoverOpacityTransitionSeconds;
+    float startupBreathMinBrightness = kStartupBreathMinBrightness;
+    float startupBreathMaxBrightness = kStartupBreathMaxBrightness;
+    float startupBreathDurationSeconds = kStartupBreathDurationSeconds;
+    bool passThroughMode = true;
+    AppLanguage language = AppLanguage::ZhHans;
+};
+
 //=============================================================================
 // Forward Declarations
 //=============================================================================
@@ -92,8 +138,9 @@ class WindowManager;
 
 struct AppState
 {
+    AppSettings settings;
+
     // HDR Rendering
-    float targetNits = kDefaultTargetNits;
     bool hdrActive = false;
 
     // Rendering control
@@ -105,6 +152,8 @@ struct AppState
     // Current client area dimensions
     int clientWidth = 0;
     int clientHeight = 0;
+    int monitorWidth = 0;
+    int monitorHeight = 0;
 
     // Fixed frame margins calculated from current monitor resolution.
     int marginLeft = 0;
@@ -132,7 +181,7 @@ struct AppState
 
     float GetWhiteLevel() const
     {
-        return hdrActive ? (targetNits / kSdrReferenceWhiteNits) : 1.0f;
+        return hdrActive ? (settings.targetNits / kSdrReferenceWhiteNits) : 1.0f;
     }
 
     void GetClearColor(float rgba[4]) const
@@ -160,6 +209,23 @@ struct AppState
 
         holeRect = { left, top, right, bottom };
     }
+
+    void UpdateMarginsFromSettings()
+    {
+        if (clientWidth <= 0 || clientHeight <= 0)
+        {
+            return;
+        }
+
+        const int sourceWidth = monitorWidth > 0 ? monitorWidth : clientWidth;
+        const int sourceHeight = monitorHeight > 0 ? monitorHeight : clientHeight;
+        marginLeft = ClampInt(static_cast<int>(static_cast<float>(sourceWidth) * settings.frameMarginXRatio), 1, clientWidth / 2 - 1);
+        marginRight = marginLeft;
+        marginTop = ClampInt(static_cast<int>(static_cast<float>(sourceHeight) * settings.frameMarginYRatio), 1, clientHeight / 2 - 1);
+        marginBottom = marginTop;
+        UpdateHoleRect();
+        renderNeeded = true;
+    }
 };
 
 //=============================================================================
@@ -177,7 +243,7 @@ public:
 
     void Resize(int width, int height);
     void Render(const AppState& state);
-    bool IsStartupBreathingActive() const;
+    bool IsStartupBreathingActive(const AppState& state) const;
     bool IsHDRSupported() const { return m_hdrActive; }
 
     void SetHDRActive(bool active) { m_hdrActive = active; }
@@ -187,7 +253,7 @@ private:
     bool CreateRenderTarget();
     bool CreateRenderPipeline();
     void ReleaseRenderTarget();
-    float GetStartupBrightnessScale() const;
+    float GetStartupBrightnessScale(const AppState& state) const;
 
     Microsoft::WRL::ComPtr<ID3D11Device> m_device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> m_context;
@@ -230,23 +296,35 @@ private:
     void SetWindowOpacity(BYTE alpha);
     void RegisterHotkeys();
     void UnregisterHotkeys();
+    void AddTrayIcon();
+    void RemoveTrayIcon();
+    void UpdateTrayTooltip();
+    void ShowTrayMenu();
+    void OnTrayIcon(LPARAM lParam);
     void ApplyPassThroughMode();
     void TogglePassThroughMode();
+    void ApplyFrameSettings();
+    void SetTargetNits(float nits);
+    void SetFrameMarginRatio(float ratio);
+    void SetHoverAlpha(BYTE alpha);
+    void SetLanguage(AppLanguage language);
     bool IsCursorOverFrame() const;
     bool UpdateHoverOpacity();
 
     void OnSize(int width, int height);
     void OnHotkey(int hotkeyId);
+    void OnCommand(UINT commandId);
     void OnDestroy();
 
     HWND m_hwnd = nullptr;
     HINSTANCE m_instance = nullptr;
-    bool m_passThroughMode = true;
     bool m_hoverTargetActive = false;
     BYTE m_currentWindowAlpha = kNormalWindowAlpha;
     BYTE m_opacityStartAlpha = kNormalWindowAlpha;
     BYTE m_opacityTargetAlpha = kNormalWindowAlpha;
     ULONGLONG m_opacityTransitionStartTick = 0;
+    NOTIFYICONDATAW m_trayIconData = {};
+    bool m_trayIconAdded = false;
 
     AppState* m_appState = nullptr;
     Renderer* m_renderer = nullptr;

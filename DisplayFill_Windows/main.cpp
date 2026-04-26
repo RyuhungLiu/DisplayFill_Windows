@@ -12,7 +12,7 @@ int main()
     std::printf("=== HDR Screen Fill Light ===\n");
     std::printf("ESC or Double-click: Exit\n");
     std::printf("Ctrl+F6: Toggle pass-through mode, default ON\n");
-    std::printf("Frame margin ratio: %.1f%% horizontal, %.1f%% vertical\n", kFrameMarginXRatio * 100.0f, kFrameMarginYRatio * 100.0f);
+    std::printf("Tray icon: right-click for settings\n");
     std::printf("===============================\n\n");
 
     HINSTANCE instance = GetModuleHandleW(nullptr);
@@ -24,7 +24,6 @@ int main()
 
     // Create shared state
     AppState appState;
-    appState.targetNits = kDefaultTargetNits;
 
     // Create renderer
     auto renderer = std::make_unique<Renderer>();
