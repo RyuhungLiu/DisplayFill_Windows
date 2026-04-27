@@ -15,6 +15,10 @@ DisplayFill_Windows.exe    Win32 + Direct3D 11 HDR rendering engine
 
 The settings app starts and controls the HDR engine through a named pipe. The HDR engine owns the tray icon and the rendering window.
 
+`DisplayFill_Windows.exe` can also be used by itself. It is a small native Win32/D3D11 HDR engine and does not require WinUI 3. The release page provides standalone `DisplayFill_Windows_arm64.exe` and `DisplayFill_Windows_x64.exe` downloads for users who only need the fill-light engine and do not need the graphical settings app.
+
+The larger release packages include `DisplayFill_Settings.exe`, the WinUI 3 graphical settings app. Those packages are much bigger because WinUI 3 / Windows App SDK runtime files must be included or installed, not because the HDR engine itself is large.
+
 ## Features
 
 - HDR fill-light frame rendered with Win32, Direct3D 11, DXGI, and FP16 swap chain.
@@ -31,6 +35,7 @@ The settings app starts and controls the HDR engine through a named pipe. The HD
 - Named Pipe IPC for real-time settings updates.
 - Release packaging for both x64 and ARM64.
 - Two release package types: SelfContained and FrameworkDependent.
+- Standalone small engine-only executable downloads for x64 and ARM64.
 
 ## Architecture
 
@@ -251,6 +256,35 @@ DisplayFill_Windows_x64_FrameworkDependent_Release.zip
 
 ## Package Types
 
+### Standalone Engine Only
+
+Use this download when you want the smallest package and do not need the WinUI 3 settings window.
+
+```text
+DisplayFill_Windows_arm64.exe
+DisplayFill_Windows_x64.exe
+```
+
+Characteristics:
+
+- Very small native Win32/D3D11 executable.
+- Runs by itself without `DisplayFill_Settings.exe`.
+- Does not include the WinUI 3 graphical settings app.
+- Does not need Windows App Runtime for the GUI.
+- Settings are controlled through built-in defaults, tray menu, hotkeys, or IPC from another client.
+
+Run it directly:
+
+```text
+DisplayFill_Windows_x64.exe
+```
+
+or:
+
+```text
+DisplayFill_Windows_arm64.exe
+```
+
 ### SelfContained
 
 Use this package when you want the simplest installation experience.
@@ -385,6 +419,7 @@ High brightness can cause eye strain. Use reasonable brightness values for your 
 ## Development Notes
 
 - `DisplayFill_Settings.exe` is an unpackaged WinUI 3 app.
+- `DisplayFill_Windows.exe` is the small native HDR engine and can be distributed as a standalone executable.
 - SelfContained builds are large because they include Windows App SDK runtime files such as `Microsoft.ui.xaml.dll`, `Microsoft.UI.Xaml.Controls.dll`, `Microsoft.WindowsAppRuntime.dll`, `DWriteCore.dll`, and related resources.
 - FrameworkDependent builds are smaller because they depend on an installed Windows App Runtime.
 
@@ -409,6 +444,10 @@ DisplayFill_Windows.exe    Win32 + Direct3D 11 HDR 渲染引擎
 
 设置程序通过 Named Pipe 启动并控制 HDR 引擎。HDR 引擎负责托盘图标、置顶渲染窗口和 HDR 补光输出。
 
+`DisplayFill_Windows.exe` 也可以单独使用。它是一个小体积的原生 Win32/D3D11 HDR 渲染引擎，不依赖 WinUI 3。Release 页面会提供独立的 `DisplayFill_Windows_arm64.exe` 和 `DisplayFill_Windows_x64.exe`，适合只需要补光引擎、不需要图形设置界面的用户。
+
+包含 `DisplayFill_Settings.exe` 的 GUI 发布包会明显更大，主要原因是 WinUI 3 / Windows App SDK 运行时文件需要随包附带或由用户安装，并不是 HDR 引擎本身体积很大。
+
 ## 功能特性
 
 - 使用 Win32、Direct3D 11、DXGI 和 FP16 swap chain 渲染 HDR 补光相框。
@@ -423,6 +462,7 @@ DisplayFill_Windows.exe    Win32 + Direct3D 11 HDR 渲染引擎
 - 提供 WinUI 3 设置窗口进行实时调节。
 - 提供托盘菜单打开设置、切换穿透模式和退出。
 - 使用 Named Pipe IPC 实时更新设置。
+- 提供 x64 和 ARM64 的纯引擎小体积独立 exe 下载。
 
 ## 架构
 
@@ -643,6 +683,35 @@ DisplayFill_Windows_x64_FrameworkDependent_Release.zip
 
 ## 发布包类型
 
+### 纯引擎独立版
+
+适合需要最小体积，并且不需要 WinUI 3 设置窗口的用户。
+
+```text
+DisplayFill_Windows_arm64.exe
+DisplayFill_Windows_x64.exe
+```
+
+特点：
+
+- 非常小的原生 Win32/D3D11 可执行文件。
+- 可脱离 `DisplayFill_Settings.exe` 单独运行。
+- 不包含 WinUI 3 图形设置程序。
+- 不需要 GUI 所需的 Windows App Runtime。
+- 可通过内置默认值、托盘菜单、快捷键，或其他 IPC 客户端控制。
+
+直接运行：
+
+```text
+DisplayFill_Windows_x64.exe
+```
+
+或：
+
+```text
+DisplayFill_Windows_arm64.exe
+```
+
 ### SelfContained 大包
 
 适合需要最简单运行体验的用户。
@@ -777,6 +846,7 @@ DisplayFill_Windows\HDRDriver.h
 ## 开发说明
 
 - `DisplayFill_Settings.exe` 是 unpackaged WinUI 3 应用。
+- `DisplayFill_Windows.exe` 是小体积原生 HDR 引擎，可以作为独立 exe 分发。
 - SelfContained 构建体积较大，因为包含 `Microsoft.ui.xaml.dll`、`Microsoft.UI.Xaml.Controls.dll`、`Microsoft.WindowsAppRuntime.dll`、`DWriteCore.dll` 等 Windows App SDK 运行时文件。
 - FrameworkDependent 构建体积较小，因为依赖已安装的 Windows App Runtime。
 

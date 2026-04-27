@@ -55,6 +55,7 @@ Generated Files/
 *.nupkg
 packages/
 run/
+release-assets/
 
 # Test and coverage output
 TestResults/
