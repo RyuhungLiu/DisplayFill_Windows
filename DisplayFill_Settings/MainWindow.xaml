@@ -122,7 +122,17 @@
                 </Grid.RowDefinitions>
 
                 <Expander x:Name="HdrExpander" Header="HDR" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
-                    <Border Style="{StaticResource CardBorderStyle}" Margin="0,8,0,0">
+                    <Grid Margin="0,8,0,0" RowSpacing="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                    <Border Style="{StaticResource CardBorderStyle}">
                         <Grid ColumnSpacing="16">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="170" />
@@ -146,11 +156,114 @@
                             </Border>
                         </Grid>
                     </Border>
+
+                    <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="CenterBoostText" Text="Center Boost" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Brighter lamp tube center" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <Slider x:Name="CenterBoostSlider" Grid.Column="1" Minimum="0" Maximum="1" Value="0.18" StepFrequency="0.01" Style="{StaticResource FillSliderStyle}" />
+                            <TextBlock x:Name="CenterBoostValueText" Grid.Column="2" Text="18%" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="ColorTemperatureText" Text="Color Temperature" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Cool to warm shift" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <Slider x:Name="ColorTemperatureSlider" Grid.Column="1" Minimum="-1" Maximum="1" Value="0" StepFrequency="0.01" Style="{StaticResource FillSliderStyle}" />
+                            <TextBlock x:Name="ColorTemperatureValueText" Grid.Column="2" Text="0" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}" Margin="0">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="ColorTintText" Text="Tint" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Green to magenta shift" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <Slider x:Name="ColorTintSlider" Grid.Column="1" Minimum="-1" Maximum="1" Value="0" StepFrequency="0.01" Style="{StaticResource FillSliderStyle}" />
+                            <TextBlock x:Name="ColorTintValueText" Grid.Column="2" Text="0" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                        </Grid>
+                    </Border>
+                    <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="ShadowStrengthText" Text="Shadow Strength" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Inner and outer depth shadow" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <Slider x:Name="ShadowStrengthSlider" Grid.Column="1" Minimum="0" Maximum="1" Value="0.28" StepFrequency="0.01" Style="{StaticResource FillSliderStyle}" />
+                            <TextBlock x:Name="ShadowStrengthValueText" Grid.Column="2" Text="28%" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Grid.Row="5" Style="{StaticResource CardBorderStyle}" Margin="0">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="72" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="ShadowSizeText" Text="Shadow Size" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Soft shadow spread" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <Slider x:Name="ShadowSizeSlider" Grid.Column="1" Minimum="0" Maximum="120" Value="42" StepFrequency="1" Style="{StaticResource FillSliderStyle}" />
+                            <TextBlock x:Name="ShadowSizeValueText" Grid.Column="2" Text="42 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                        </Grid>
+                    </Border>
+                    </Grid>
                 </Expander>
 
                 <Expander x:Name="FrameExpander" Grid.Row="1" Header="Frame" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
                     <Grid Margin="0,8,0,0" RowSpacing="0">
                         <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
@@ -213,6 +326,46 @@
                                 </Grid>
                                 <Slider x:Name="CornerFeatherSlider" Grid.Column="1" Minimum="0" Maximum="64" Value="24" StepFrequency="1" Style="{StaticResource FillSliderStyle}" />
                                 <TextBlock x:Name="CornerFeatherValueText" Grid.Column="2" Text="24 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="3" Style="{StaticResource CardBorderStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="OuterCornerRadiusText" Text="Outer Corner" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Rounded outside lamp shape" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="OuterCornerRadiusSlider" Grid.Column="1" Minimum="0" Maximum="240" Value="0" StepFrequency="5" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="OuterCornerRadiusValueText" Grid.Column="2" Text="0 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="4" Style="{StaticResource CardBorderStyle}" Margin="0">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="ScreenInsetText" Text="Screen Inset" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Distance from physical screen edge" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="ScreenInsetSlider" Grid.Column="1" Minimum="0" Maximum="240" Value="0" StepFrequency="1" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="ScreenInsetValueText" Grid.Column="2" Text="0 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
                             </Grid>
                         </Border>
                     </Grid>
@@ -315,9 +468,13 @@
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ActionButtonStyle}" />
-                        <Button x:Name="ExitEngineButton" Grid.Row="1" Content="Exit Engine" Style="{StaticResource ActionButtonStyle}" />
+                        <Button x:Name="CopyConfigButton" Grid.Row="1" Content="Copy Config" Style="{StaticResource ActionButtonStyle}" />
+                        <Button x:Name="PasteConfigButton" Grid.Row="2" Content="Paste Config" Style="{StaticResource ActionButtonStyle}" />
+                        <Button x:Name="ExitEngineButton" Grid.Row="3" Content="Exit Engine" Style="{StaticResource ActionButtonStyle}" />
                     </Grid>
                 </Expander>
             </Grid>

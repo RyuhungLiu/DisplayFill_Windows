@@ -15,8 +15,15 @@ struct RenderConstants
     float holeRect[4];
     float featherPixels;
     float brightnessScale;
-    float padding[2];
+    float centerBrightnessBoost;
+    float colorTemperatureShift;
+    float colorTintShift;
+    float shadowStrength;
+    float shadowSizePixels;
+    float padding[5];
 };
+
+static_assert(sizeof(RenderConstants) % 16 == 0, "D3D11 constant buffers must be 16-byte aligned.");
 
 constexpr char kVertexShaderSource[] = R"(
 struct VSOut
@@ -50,7 +57,13 @@ cbuffer RenderConstants : register(b0)
     float4 holeRect;
     float featherPixels;
     float brightnessScale;
-    float2 padding;
+    float centerBrightnessBoost;
+    float colorTemperatureShift;
+    float colorTintShift;
+    float shadowStrength;
+    float shadowSizePixels;
+    float padding0;
+    float4 padding1;
 };
 
 float roundedRectSdf(float2 p, float4 rect, float radius)
@@ -65,11 +78,33 @@ float4 main(float4 position : SV_POSITION, float2 uv : TEXCOORD0) : SV_TARGET
 {
     float2 p = uv * resolution;
     float distanceToHole = roundedRectSdf(p, holeRect, cornerRadius);
+    float2 distanceToOuter = min(p, resolution - p);
+    float distanceFromOuterEdge = min(distanceToOuter.x, distanceToOuter.y);
 
     // 1 outside the rounded hole, 0 inside it, smoothly fading across the edge.
     float frameMask = smoothstep(-featherPixels, featherPixels, distanceToHole);
-    float brightness = whiteLevel * brightnessScale * frameMask;
-    return float4(brightness, brightness, brightness, 1.0);
+    float frameWidth = max(min(min(holeRect.x, resolution.x - holeRect.z), min(holeRect.y, resolution.y - holeRect.w)), 1.0);
+    float holeDepth = saturate(max(distanceToHole, 0.0) / frameWidth);
+    float outerDepth = saturate(distanceFromOuterEdge / frameWidth);
+    float tubeProfile = smoothstep(0.0, 1.0, saturate(min(holeDepth, outerDepth) * 2.0));
+    tubeProfile = max(tubeProfile, 0.35 * smoothstep(0.0, 1.0, saturate(max(holeDepth, outerDepth) * 2.0)));
+
+    float shadowWidth = max(shadowSizePixels, 1.0);
+    float innerShadow = exp(-abs(distanceToHole) / shadowWidth) * smoothstep(-featherPixels, featherPixels * 0.5, distanceToHole);
+    float outerShadow = exp(-distanceFromOuterEdge / shadowWidth);
+    float shadow = shadowStrength * saturate(innerShadow + outerShadow * frameMask);
+
+    float brightness = whiteLevel * brightnessScale * (1.0 + centerBrightnessBoost * tubeProfile) * frameMask;
+    float3 color = float3(brightness, brightness, brightness);
+    float warm = max(colorTemperatureShift, 0.0);
+    float cool = max(-colorTemperatureShift, 0.0);
+    color *= float3(1.0 + 0.10 * warm - 0.04 * cool, 1.0 + 0.02 * warm + 0.03 * cool, 1.0 - 0.08 * warm + 0.12 * cool);
+
+    float magenta = max(colorTintShift, 0.0);
+    float green = max(-colorTintShift, 0.0);
+    color *= float3(1.0 + 0.06 * magenta - 0.03 * green, 1.0 - 0.08 * magenta + 0.10 * green, 1.0 + 0.06 * magenta - 0.03 * green);
+    color *= 1.0 - shadow * 0.55;
+    return float4(color, 1.0);
 }
 )";
 }
@@ -541,8 +576,16 @@ void Renderer::Render(const AppState& state)
     constants->holeRect[3] = static_cast<float>(state.holeRect.bottom);
     constants->featherPixels = state.settings.visualCornerFeatherPixels;
     constants->brightnessScale = GetStartupBrightnessScale(state);
+    constants->centerBrightnessBoost = state.settings.centerBrightnessBoost;
+    constants->colorTemperatureShift = state.settings.colorTemperatureShift;
+    constants->colorTintShift = state.settings.colorTintShift;
+    constants->shadowStrength = state.settings.shadowStrength;
+    constants->shadowSizePixels = state.settings.shadowSizePixels;
     constants->padding[0] = 0.0f;
     constants->padding[1] = 0.0f;
+    constants->padding[2] = 0.0f;
+    constants->padding[3] = 0.0f;
+    constants->padding[4] = 0.0f;
     m_context->Unmap(m_constantBuffer.Get(), 0);
 
     D3D11_VIEWPORT viewport = {};

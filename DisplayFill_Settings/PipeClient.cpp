@@ -108,6 +108,75 @@ namespace
         MultiByteToWideChar(CP_UTF8, 0, text.c_str(), -1, result.data(), size);
         return result;
     }
+
+    std::string EscapeJsonString(std::string_view value)
+    {
+        std::string result;
+        result.reserve(value.size() + 16);
+        for (const char ch : value)
+        {
+            switch (ch)
+            {
+            case '\\':
+                result += "\\\\";
+                break;
+            case '"':
+                result += "\\\"";
+                break;
+            case '\r':
+                result += "\\r";
+                break;
+            case '\n':
+                result += "\\n";
+                break;
+            case '\t':
+                result += "\\t";
+                break;
+            default:
+                result.push_back(ch);
+                break;
+            }
+        }
+        return result;
+    }
+
+    std::string UnescapeJsonString(std::string_view value)
+    {
+        std::string result;
+        result.reserve(value.size());
+        for (size_t i = 0; i < value.size(); ++i)
+        {
+            const char ch = value[i];
+            if (ch == '\\' && i + 1 < value.size())
+            {
+                const char escaped = value[++i];
+                switch (escaped)
+                {
+                case 'r':
+                    result.push_back('\r');
+                    break;
+                case 'n':
+                    result.push_back('\n');
+                    break;
+                case 't':
+                    result.push_back('\t');
+                    break;
+                case '\\':
+                case '"':
+                    result.push_back(escaped);
+                    break;
+                default:
+                    result.push_back(escaped);
+                    break;
+                }
+            }
+            else
+            {
+                result.push_back(ch);
+            }
+        }
+        return result;
+    }
 }
 
 bool PipeClient::EnsureEngineRunningAndConnected()
@@ -168,6 +237,54 @@ bool PipeClient::SetString(const char* key, const char* value)
 bool PipeClient::SendCommand(const char* name)
 {
     const std::string json = std::format("{{\"type\":\"command\",\"name\":\"{}\"}}", name);
+    return Contains(SendJson(json), "\"ok\":true");
+}
+
+std::optional<std::string> PipeClient::GetConfigText()
+{
+    const std::string response = SendJson("{\"type\":\"getConfig\"}");
+    if (!Contains(response, "\"ok\":true"))
+    {
+        return std::nullopt;
+    }
+
+    std::string raw;
+    if (!ExtractRawValue(response, "content", raw) || raw.size() < 2 || raw.front() != '"')
+    {
+        return std::nullopt;
+    }
+
+    raw.erase(raw.begin());
+    size_t endQuote = std::string::npos;
+    bool escaped = false;
+    for (size_t i = 0; i < raw.size(); ++i)
+    {
+        if (escaped)
+        {
+            escaped = false;
+            continue;
+        }
+        if (raw[i] == '\\')
+        {
+            escaped = true;
+            continue;
+        }
+        if (raw[i] == '"')
+        {
+            endQuote = i;
+            break;
+        }
+    }
+    if (endQuote != std::string::npos)
+    {
+        raw.resize(endQuote);
+    }
+    return UnescapeJsonString(raw);
+}
+
+bool PipeClient::SetConfigText(const std::string& content)
+{
+    const std::string json = std::string("{\"type\":\"setConfig\",\"content\":\"") + EscapeJsonString(content) + "\"}";
     return Contains(SendJson(json), "\"ok\":true");
 }
 
@@ -257,6 +374,13 @@ std::optional<EngineState> PipeClient::ParseState(const std::string& json) const
     state.frameMarginYRatio = static_cast<float>(ExtractDoubleOr(json, "frameMarginYRatio", state.frameMarginYRatio));
     state.cornerRadius = static_cast<int>(ExtractDoubleOr(json, "cornerRadius", state.cornerRadius));
     state.visualCornerFeatherPixels = static_cast<float>(ExtractDoubleOr(json, "visualCornerFeatherPixels", state.visualCornerFeatherPixels));
+    state.outerCornerRadius = static_cast<int>(ExtractDoubleOr(json, "outerCornerRadius", state.outerCornerRadius));
+    state.screenInsetPixels = static_cast<int>(ExtractDoubleOr(json, "screenInsetPixels", state.screenInsetPixels));
+    state.centerBrightnessBoost = static_cast<float>(ExtractDoubleOr(json, "centerBrightnessBoost", state.centerBrightnessBoost));
+    state.colorTemperatureShift = static_cast<float>(ExtractDoubleOr(json, "colorTemperatureShift", state.colorTemperatureShift));
+    state.colorTintShift = static_cast<float>(ExtractDoubleOr(json, "colorTintShift", state.colorTintShift));
+    state.shadowStrength = static_cast<float>(ExtractDoubleOr(json, "shadowStrength", state.shadowStrength));
+    state.shadowSizePixels = static_cast<float>(ExtractDoubleOr(json, "shadowSizePixels", state.shadowSizePixels));
     state.normalAlpha = static_cast<int>(ExtractDoubleOr(json, "normalAlpha", state.normalAlpha));
     state.hoverAlpha = static_cast<int>(ExtractDoubleOr(json, "hoverAlpha", state.hoverAlpha));
     state.hoverTransitionSeconds = static_cast<float>(ExtractDoubleOr(json, "hoverTransitionSeconds", state.hoverTransitionSeconds));
@@ -285,6 +409,12 @@ std::wstring PipeClient::GetEnginePath() const
     if (std::filesystem::exists(sameDirectory))
     {
         return sameDirectory.wstring();
+    }
+
+    const std::filesystem::path buildOutputParent = modulePath.parent_path().parent_path() / L"DisplayFill_Windows.exe";
+    if (std::filesystem::exists(buildOutputParent))
+    {
+        return buildOutputParent.wstring();
     }
 
     const std::filesystem::path developmentPath = modulePath.parent_path() / L".." / L".." / L".." / L".." / L"DisplayFill_Windows" / L"x64" / L"Debug" / L"DisplayFill_Windows.exe";

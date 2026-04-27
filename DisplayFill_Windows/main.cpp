@@ -25,6 +25,7 @@ int main()
 
     // Create shared state
     AppState appState;
+    LoadSettingsFromIni(appState.settings);
 
     // Create renderer
     auto renderer = std::make_unique<Renderer>();

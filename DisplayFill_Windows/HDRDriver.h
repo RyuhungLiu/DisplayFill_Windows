@@ -64,6 +64,24 @@ constexpr int kHoleCornerRadius = 60;
 // 推荐范围：12.0 - 48.0。过大时边缘会显得发虚。
 constexpr float kVisualCornerFeatherPixels = 24.0f;
 
+// 窗口外边界圆角半径，单位像素。用于让补光层本身也像一盏独立灯具。
+constexpr int kOuterCornerRadius = 0;
+
+// 补光层距离实际显示器边缘的缩进像素。0 表示贴合当前显示器边缘。
+constexpr int kScreenInsetPixels = 0;
+
+// 模拟灯管/灯带截面：相框厚度中线略亮，targetNits 仍作为基础标准亮度。
+constexpr float kCenterBrightnessBoost = 0.18f;
+
+// 色温偏移：-1 偏冷，0 不变，1 偏暖。
+constexpr float kColorTemperatureShift = 0.0f;
+
+// 色调偏移：-1 偏绿，0 不变，1 偏紫。
+constexpr float kColorTintShift = 0.0f;
+
+constexpr float kShadowStrength = 0.28f;
+constexpr float kShadowSizePixels = 42.0f;
+
 // 正常状态窗口不透明度。255 为完全不透明，0 为完全透明。
 constexpr BYTE kNormalWindowAlpha = 255;
 
@@ -120,6 +138,13 @@ struct AppSettings
     float frameMarginYRatio = kFrameMarginYRatio;
     int holeCornerRadius = kHoleCornerRadius;
     float visualCornerFeatherPixels = kVisualCornerFeatherPixels;
+    int outerCornerRadius = kOuterCornerRadius;
+    int screenInsetPixels = kScreenInsetPixels;
+    float centerBrightnessBoost = kCenterBrightnessBoost;
+    float colorTemperatureShift = kColorTemperatureShift;
+    float colorTintShift = kColorTintShift;
+    float shadowStrength = kShadowStrength;
+    float shadowSizePixels = kShadowSizePixels;
     BYTE normalWindowAlpha = kNormalWindowAlpha;
     BYTE mouseHoverWindowAlpha = kMouseHoverWindowAlpha;
     float hoverOpacityTransitionSeconds = kHoverOpacityTransitionSeconds;
@@ -142,6 +167,7 @@ enum class IpcCommandType
 {
     SetValue,
     TogglePassThrough,
+    ReloadConfig,
     Exit,
 };
 
@@ -182,8 +208,12 @@ struct AppState
     // Current client area dimensions
     int clientWidth = 0;
     int clientHeight = 0;
+    int windowLeft = 0;
+    int windowTop = 0;
     int monitorWidth = 0;
     int monitorHeight = 0;
+    int monitorLeft = 0;
+    int monitorTop = 0;
 
     // Fixed frame margins calculated from current monitor resolution.
     int marginLeft = 0;
@@ -334,11 +364,13 @@ private:
     void OpenSettingsApp();
     void ApplyPassThroughMode();
     void TogglePassThroughMode();
+    void ApplyScreenInset();
     void ApplyFrameSettings();
     void SetTargetNits(float nits);
     void SetFrameMarginRatio(float ratio);
     void SetHoverAlpha(BYTE alpha);
     void SetLanguage(AppLanguage language);
+    void SaveCurrentSettings() const;
     void OnIpcCommand(IpcCommand* command);
     bool IsCursorOverFrame() const;
     bool UpdateHoverOpacity();
@@ -392,6 +424,10 @@ private:
 
 void PrintLastError(const char* message, HRESULT hr);
 void EnsureConsole();
+void LoadSettingsFromIni(AppSettings& settings);
+void SaveSettingsToIni(const AppSettings& settings);
+std::string ReadSettingsIniUtf8();
+bool WriteSettingsIniUtf8(const std::string& content, AppSettings& settings);
 
 } // namespace hdr_driver
 

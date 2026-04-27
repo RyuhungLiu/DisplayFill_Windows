@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
+#include <iomanip>
 #include <string_view>
 
 namespace hdr_driver
@@ -61,6 +62,98 @@ namespace
 
         value.assign(text.substr(firstQuote + 1, secondQuote - firstQuote - 1));
         return true;
+    }
+
+    std::string EscapeJsonString(std::string_view value)
+    {
+        std::ostringstream stream;
+        for (const unsigned char ch : value)
+        {
+            switch (ch)
+            {
+            case '\\':
+                stream << "\\\\";
+                break;
+            case '"':
+                stream << "\\\"";
+                break;
+            case '\r':
+                stream << "\\r";
+                break;
+            case '\n':
+                stream << "\\n";
+                break;
+            case '\t':
+                stream << "\\t";
+                break;
+            default:
+                if (ch < 0x20)
+                {
+                    stream << "\\u" << std::hex << std::setw(4) << std::setfill('0') << static_cast<int>(ch) << std::dec;
+                }
+                else
+                {
+                    stream << static_cast<char>(ch);
+                }
+                break;
+            }
+        }
+        return stream.str();
+    }
+
+    bool ExtractEscapedStringValue(std::string_view text, std::string_view key, std::string& value)
+    {
+        const std::string quotedKey = "\"" + std::string(key) + "\"";
+        const size_t keyPos = text.find(quotedKey);
+        if (keyPos == std::string_view::npos)
+        {
+            return false;
+        }
+
+        const size_t colonPos = text.find(':', keyPos + quotedKey.size());
+        const size_t firstQuote = text.find('"', colonPos == std::string_view::npos ? keyPos : colonPos + 1);
+        if (colonPos == std::string_view::npos || firstQuote == std::string_view::npos)
+        {
+            return false;
+        }
+
+        value.clear();
+        for (size_t i = firstQuote + 1; i < text.size(); ++i)
+        {
+            const char ch = text[i];
+            if (ch == '"')
+            {
+                return true;
+            }
+            if (ch == '\\' && i + 1 < text.size())
+            {
+                const char escaped = text[++i];
+                switch (escaped)
+                {
+                case 'r':
+                    value.push_back('\r');
+                    break;
+                case 'n':
+                    value.push_back('\n');
+                    break;
+                case 't':
+                    value.push_back('\t');
+                    break;
+                case '\\':
+                case '"':
+                    value.push_back(escaped);
+                    break;
+                default:
+                    value.push_back(escaped);
+                    break;
+                }
+            }
+            else
+            {
+                value.push_back(ch);
+            }
+        }
+        return false;
     }
 
     bool ExtractRawValue(std::string_view text, std::string_view key, std::string& value)
@@ -293,6 +386,30 @@ std::string IpcServer::HandleMessage(const std::string& message)
             return BuildStateJson();
         }
 
+        if (Contains(message, "\"getConfig\""))
+        {
+            return std::string("{\"ok\":true,\"content\":\"") + EscapeJsonString(ReadSettingsIniUtf8()) + "\"}";
+        }
+
+        if (Contains(message, "\"setConfig\""))
+        {
+            std::string content;
+            if (!ExtractEscapedStringValue(message, "content", content) || !m_appState)
+            {
+                return "{\"ok\":false,\"error\":\"invalid config content\"}";
+            }
+            const bool ok = WriteSettingsIniUtf8(content, m_appState->settings);
+            if (ok)
+            {
+                m_appState->UpdateMarginsFromSettings();
+                m_appState->renderNeeded = true;
+                IpcCommand command;
+                command.commandType = IpcCommandType::ReloadConfig;
+                PostCommand(command);
+            }
+            return ok ? "{\"ok\":true}" : "{\"ok\":false,\"error\":\"write failed\"}";
+        }
+
         IpcCommand command;
         if (TryCreateCommand(message, command))
         {
@@ -320,6 +437,13 @@ std::string IpcServer::BuildStateJson() const
         << "\"frameMarginYRatio\":" << settings.frameMarginYRatio << ","
         << "\"cornerRadius\":" << settings.holeCornerRadius << ","
         << "\"visualCornerFeatherPixels\":" << settings.visualCornerFeatherPixels << ","
+        << "\"outerCornerRadius\":" << settings.outerCornerRadius << ","
+        << "\"screenInsetPixels\":" << settings.screenInsetPixels << ","
+        << "\"centerBrightnessBoost\":" << settings.centerBrightnessBoost << ","
+        << "\"colorTemperatureShift\":" << settings.colorTemperatureShift << ","
+        << "\"colorTintShift\":" << settings.colorTintShift << ","
+        << "\"shadowStrength\":" << settings.shadowStrength << ","
+        << "\"shadowSizePixels\":" << settings.shadowSizePixels << ","
         << "\"normalAlpha\":" << static_cast<int>(settings.normalWindowAlpha) << ","
         << "\"hoverAlpha\":" << static_cast<int>(settings.mouseHoverWindowAlpha) << ","
         << "\"hoverTransitionSeconds\":" << settings.hoverOpacityTransitionSeconds << ","

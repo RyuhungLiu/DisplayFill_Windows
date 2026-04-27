@@ -11,6 +11,13 @@ struct EngineState
     float frameMarginYRatio = 0.08f;
     int cornerRadius = 60;
     float visualCornerFeatherPixels = 24.0f;
+    int outerCornerRadius = 0;
+    int screenInsetPixels = 0;
+    float centerBrightnessBoost = 0.18f;
+    float colorTemperatureShift = 0.0f;
+    float colorTintShift = 0.0f;
+    float shadowStrength = 0.28f;
+    float shadowSizePixels = 42.0f;
     int normalAlpha = 255;
     int hoverAlpha = 40;
     float hoverTransitionSeconds = 0.45f;
@@ -32,6 +39,8 @@ public:
     bool SetBoolean(const char* key, bool value);
     bool SetString(const char* key, const char* value);
     bool SendCommand(const char* name);
+    std::optional<std::string> GetConfigText();
+    bool SetConfigText(const std::string& content);
 
 private:
     bool TryConnectOnce();

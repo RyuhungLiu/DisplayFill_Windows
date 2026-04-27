@@ -1,19 +1,29 @@
 #include "pch.h"
 #include "MainWindow.xaml.h"
+#include <winrt/Windows.ApplicationModel.DataTransfer.h>
 #if __has_include("MainWindow.g.cpp")
 #include "MainWindow.g.cpp"
 #endif
 
 #include <algorithm>
+#include <cwchar>
 
 using namespace winrt;
 using namespace Microsoft::UI::Xaml;
 using namespace Microsoft::UI::Xaml::Controls;
 using namespace Microsoft::UI::Windowing;
 using namespace Windows::Graphics;
+using namespace Windows::ApplicationModel::DataTransfer;
 
 namespace winrt::DisplayFill_Settings::implementation
 {
+    hstring FormatDouble(double value, int decimals)
+    {
+        wchar_t buffer[32] = {};
+        swprintf_s(buffer, L"%.*f", decimals, value);
+        return hstring(buffer);
+    }
+
     struct UiText
     {
         hstring title;
@@ -29,6 +39,13 @@ namespace winrt::DisplayFill_Settings::implementation
         hstring frameMargin;
         hstring cornerRadius;
         hstring visualFeather;
+        hstring outerCornerRadius;
+        hstring screenInset;
+        hstring centerBoost;
+        hstring colorTemperature;
+        hstring colorTint;
+        hstring shadowStrength;
+        hstring shadowSize;
         hstring window;
         hstring passThroughMode;
         hstring hoverAlpha;
@@ -37,6 +54,11 @@ namespace winrt::DisplayFill_Settings::implementation
         hstring actions;
         hstring refresh;
         hstring exitEngine;
+        hstring copyConfig;
+        hstring pasteConfig;
+        hstring configCopied;
+        hstring configPasted;
+        hstring configFailed;
     };
 
     UiText GetUiText(hstring const& language)
@@ -57,6 +79,13 @@ namespace winrt::DisplayFill_Settings::implementation
                 L"相框寬度",
                 L"圓角半徑",
                 L"邊緣羽化",
+                L"外圓角",
+                L"螢幕邊距",
+                L"中心亮度增強",
+                L"色溫",
+                L"色調",
+                L"陰影強度",
+                L"陰影大小",
                 L"視窗",
                 L"滑鼠穿透模式",
                 L"滑鼠停留透明度",
@@ -64,7 +93,12 @@ namespace winrt::DisplayFill_Settings::implementation
                 L"語言",
                 L"操作",
                 L"重新整理",
-                L"結束引擎"
+                L"結束引擎",
+                L"複製設定檔",
+                L"貼上設定檔",
+                L"已複製設定檔內容。",
+                L"已貼上設定檔內容。",
+                L"設定檔操作失敗。"
             };
         }
 
@@ -84,6 +118,13 @@ namespace winrt::DisplayFill_Settings::implementation
                 L"Frame Margin",
                 L"Corner Radius",
                 L"Visual Feather",
+                L"Outer Corner",
+                L"Screen Inset",
+                L"Center Boost",
+                L"Color Temperature",
+                L"Tint",
+                L"Shadow Strength",
+                L"Shadow Size",
                 L"Window",
                 L"Pass-through Mode",
                 L"Hover Alpha",
@@ -91,7 +132,12 @@ namespace winrt::DisplayFill_Settings::implementation
                 L"Language",
                 L"Actions",
                 L"Refresh",
-                L"Exit Engine"
+                L"Exit Engine",
+                L"Copy Config",
+                L"Paste Config",
+                L"Configuration copied.",
+                L"Configuration pasted.",
+                L"Configuration operation failed."
             };
         }
 
@@ -109,6 +155,13 @@ namespace winrt::DisplayFill_Settings::implementation
             L"相框宽度",
             L"圆角半径",
             L"边缘羽化",
+            L"外圆角",
+            L"屏幕边距",
+            L"中心亮度增强",
+            L"色温",
+            L"色调",
+            L"阴影强度",
+            L"阴影大小",
             L"窗口",
             L"鼠标穿透模式",
             L"鼠标悬停透明度",
@@ -116,7 +169,12 @@ namespace winrt::DisplayFill_Settings::implementation
             L"语言",
             L"操作",
             L"刷新",
-            L"退出引擎"
+            L"退出引擎",
+            L"复制配置文件",
+            L"粘贴配置文件",
+            L"已复制配置文件内容。",
+            L"已粘贴配置文件内容。",
+            L"配置文件操作失败。"
         };
     }
 
@@ -168,6 +226,11 @@ namespace winrt::DisplayFill_Settings::implementation
         auto const windowId = Microsoft::UI::GetWindowIdFromWindow(hwnd);
         auto appWindow = AppWindow::GetFromWindowId(windowId);
         appWindow.Resize(SizeInt32{ windowWidth, windowHeight });
+        if (auto presenter = appWindow.Presenter().try_as<OverlappedPresenter>())
+        {
+            presenter.IsResizable(false);
+            presenter.IsMaximizable(false);
+        }
     }
 
     void MainWindow::StartEngineWatchdog()
@@ -176,7 +239,7 @@ namespace winrt::DisplayFill_Settings::implementation
         m_engineWatchdogTimer.Interval(std::chrono::seconds(1));
         m_engineWatchdogTimer.Tick([this](auto const&, auto const&)
         {
-            if (m_connected && !m_pipeClient.IsEngineRunning())
+            if (m_everConnected && m_connected && !m_pipeClient.IsEngineRunning())
             {
                 m_connected = false;
                 Close();
@@ -198,6 +261,13 @@ namespace winrt::DisplayFill_Settings::implementation
         FrameMarginText().Text(text.frameMargin);
         CornerRadiusText().Text(text.cornerRadius);
         VisualFeatherText().Text(text.visualFeather);
+        OuterCornerRadiusText().Text(text.outerCornerRadius);
+        ScreenInsetText().Text(text.screenInset);
+        CenterBoostText().Text(text.centerBoost);
+        ColorTemperatureText().Text(text.colorTemperature);
+        ColorTintText().Text(text.colorTint);
+        ShadowStrengthText().Text(text.shadowStrength);
+        ShadowSizeText().Text(text.shadowSize);
         WindowExpander().Header(box_value(text.window));
         PassThroughText().Text(text.passThroughMode);
         HoverAlphaText().Text(text.hoverAlpha);
@@ -206,6 +276,8 @@ namespace winrt::DisplayFill_Settings::implementation
         ActionsExpander().Header(box_value(text.actions));
         RefreshButton().Content(box_value(text.refresh));
         ExitEngineButton().Content(box_value(text.exitEngine));
+        CopyConfigButton().Content(box_value(text.copyConfig));
+        PasteConfigButton().Content(box_value(text.pasteConfig));
     }
 
     void MainWindow::ConnectEvents()
@@ -228,6 +300,41 @@ namespace winrt::DisplayFill_Settings::implementation
         CornerFeatherSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
         {
             OnCornerFeatherChanged(e.NewValue());
+        });
+
+        OuterCornerRadiusSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnOuterCornerRadiusChanged(e.NewValue());
+        });
+
+        ScreenInsetSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnScreenInsetChanged(e.NewValue());
+        });
+
+        CenterBoostSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnCenterBrightnessBoostChanged(e.NewValue());
+        });
+
+        ColorTemperatureSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnColorTemperatureChanged(e.NewValue());
+        });
+
+        ColorTintSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnColorTintChanged(e.NewValue());
+        });
+
+        ShadowStrengthSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnShadowStrengthChanged(e.NewValue());
+        });
+
+        ShadowSizeSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
+        {
+            OnShadowSizeChanged(e.NewValue());
         });
 
         HoverAlphaSlider().ValueChanged([this](auto const&, Controls::Primitives::RangeBaseValueChangedEventArgs const& e)
@@ -255,6 +362,16 @@ namespace winrt::DisplayFill_Settings::implementation
             ConnectEngineAndLoadState();
         });
 
+        CopyConfigButton().Click([this](auto const&, RoutedEventArgs const&)
+        {
+            CopyConfigToClipboard();
+        });
+
+        PasteConfigButton().Click([this](auto const&, RoutedEventArgs const&)
+        {
+            PasteConfigFromClipboard();
+        });
+
         ExitEngineButton().Click([this](auto const&, RoutedEventArgs const&)
         {
             if (m_connected && m_pipeClient.SendCommand("exit"))
@@ -275,6 +392,7 @@ namespace winrt::DisplayFill_Settings::implementation
             SetStatus(GetUiText(m_language).connectFailed);
             return;
         }
+        m_everConnected = true;
 
         std::optional<EngineState> state;
         for (int i = 0; i < 20; ++i)
@@ -305,6 +423,13 @@ namespace winrt::DisplayFill_Settings::implementation
         FrameMarginSlider().Value(state.frameMarginXRatio);
         CornerRadiusSlider().Value(state.cornerRadius);
         CornerFeatherSlider().Value(state.visualCornerFeatherPixels);
+        OuterCornerRadiusSlider().Value(state.outerCornerRadius);
+        ScreenInsetSlider().Value(state.screenInsetPixels);
+        CenterBoostSlider().Value(state.centerBrightnessBoost);
+        ColorTemperatureSlider().Value(state.colorTemperatureShift);
+        ColorTintSlider().Value(state.colorTintShift);
+        ShadowStrengthSlider().Value(state.shadowStrength);
+        ShadowSizeSlider().Value(state.shadowSizePixels);
         HoverAlphaSlider().Value(state.hoverAlpha);
         HoverTransitionSlider().Value(state.hoverTransitionSeconds);
         PassThroughToggle().IsOn(state.passThroughMode);
@@ -335,8 +460,15 @@ namespace winrt::DisplayFill_Settings::implementation
         FrameMarginValueText().Text(to_hstring(static_cast<int>(FrameMarginSlider().Value() * 100.0)) + L"%");
         CornerRadiusValueText().Text(to_hstring(static_cast<int>(CornerRadiusSlider().Value())) + L" px");
         CornerFeatherValueText().Text(to_hstring(static_cast<int>(CornerFeatherSlider().Value())) + L" px");
+        OuterCornerRadiusValueText().Text(to_hstring(static_cast<int>(OuterCornerRadiusSlider().Value())) + L" px");
+        ScreenInsetValueText().Text(to_hstring(static_cast<int>(ScreenInsetSlider().Value())) + L" px");
+        CenterBoostValueText().Text(to_hstring(static_cast<int>(CenterBoostSlider().Value() * 100.0)) + L"%");
+        ColorTemperatureValueText().Text(to_hstring(static_cast<int>(ColorTemperatureSlider().Value() * 100.0)));
+        ColorTintValueText().Text(to_hstring(static_cast<int>(ColorTintSlider().Value() * 100.0)));
+        ShadowStrengthValueText().Text(to_hstring(static_cast<int>(ShadowStrengthSlider().Value() * 100.0)) + L"%");
+        ShadowSizeValueText().Text(to_hstring(static_cast<int>(ShadowSizeSlider().Value())) + L" px");
         HoverAlphaValueText().Text(to_hstring(static_cast<int>(HoverAlphaSlider().Value())));
-        HoverTransitionValueText().Text(to_hstring(HoverTransitionSlider().Value()) + L" s");
+        HoverTransitionValueText().Text(FormatDouble(HoverTransitionSlider().Value(), 2) + L" s");
     }
 
     void MainWindow::SetStatus(hstring const& text)
@@ -390,6 +522,69 @@ namespace winrt::DisplayFill_Settings::implementation
         }
     }
 
+    void MainWindow::OnOuterCornerRadiusChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("outerCornerRadius", value);
+        }
+    }
+
+    void MainWindow::OnScreenInsetChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("screenInsetPixels", value);
+        }
+    }
+
+    void MainWindow::OnCenterBrightnessBoostChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("centerBrightnessBoost", value);
+        }
+    }
+
+    void MainWindow::OnColorTemperatureChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("colorTemperatureShift", value);
+        }
+    }
+
+    void MainWindow::OnColorTintChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("colorTintShift", value);
+        }
+    }
+
+    void MainWindow::OnShadowStrengthChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("shadowStrength", value);
+        }
+    }
+
+    void MainWindow::OnShadowSizeChanged(double value)
+    {
+        UpdateValueTexts();
+        if (!m_loading && m_connected)
+        {
+            m_pipeClient.SetNumber("shadowSizePixels", value);
+        }
+    }
+
     void MainWindow::OnHoverAlphaChanged(double value)
     {
         UpdateValueTexts();
@@ -439,5 +634,70 @@ namespace winrt::DisplayFill_Settings::implementation
             ApplyLanguage(L"zh-Hans");
             m_pipeClient.SetString("language", "zh-Hans");
         }
+    }
+
+    void MainWindow::CopyConfigToClipboard()
+    {
+        if (!m_connected)
+        {
+            SetStatus(GetUiText(m_language).configFailed);
+            return;
+        }
+
+        const auto config = m_pipeClient.GetConfigText();
+        if (!config)
+        {
+            SetStatus(GetUiText(m_language).configFailed);
+            return;
+        }
+
+        DataPackage package;
+        package.SetText(to_hstring(*config));
+        Clipboard::SetContent(package);
+        SetStatus(GetUiText(m_language).configCopied);
+    }
+
+    void MainWindow::PasteConfigFromClipboard()
+    {
+        if (!m_connected)
+        {
+            SetStatus(GetUiText(m_language).configFailed);
+            return;
+        }
+
+        auto content = Clipboard::GetContent();
+        if (!content.Contains(StandardDataFormats::Text()))
+        {
+            SetStatus(GetUiText(m_language).configFailed);
+            return;
+        }
+
+        content.GetTextAsync().Completed([this](auto const& operation, Windows::Foundation::AsyncStatus status)
+        {
+            if (status != Windows::Foundation::AsyncStatus::Completed)
+            {
+                DispatcherQueue().TryEnqueue([this]
+                {
+                    SetStatus(GetUiText(m_language).configFailed);
+                });
+                return;
+            }
+
+            const hstring text = operation.GetResults();
+            const std::string utf8 = to_string(text);
+            const bool ok = m_pipeClient.SetConfigText(utf8);
+            DispatcherQueue().TryEnqueue([this, ok]
+            {
+                if (ok)
+                {
+                    ConnectEngineAndLoadState();
+                    SetStatus(GetUiText(m_language).configPasted);
+                }
+                else
+                {
+                    SetStatus(GetUiText(m_language).configFailed);
+                }
+            });
+        });
     }
 }

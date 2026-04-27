@@ -28,11 +28,15 @@ The larger release packages include `DisplayFill_Settings.exe`, the WinUI 3 grap
 - Win32 region-based hit-test hole for the center area.
 - Mouse pass-through mode for interacting with windows behind the fill light.
 - Smooth visual rounded corners and feathered edges in the D3D shader.
+- Outside rounded corners and screen-edge inset for a floating lamp shape.
+- Lamp-tube style center brightness boost, color temperature, tint, and soft inner/outer shadow controls.
 - Startup brightness breathing animation.
 - Pointer-hover opacity transition for the fill-light frame.
 - WinUI 3 settings window for runtime control.
 - Tray menu for opening settings, toggling pass-through mode, and exiting.
 - Named Pipe IPC for real-time settings updates.
+- Persistent INI configuration next to `DisplayFill_Windows.exe`.
+- Copy and paste configuration text from the settings app.
 - Release packaging for both x64 and ARM64.
 - Two release package types: SelfContained and FrameworkDependent.
 - Standalone small engine-only executable downloads for x64 and ARM64.
@@ -73,6 +77,7 @@ DisplayFill_Windows/                  HDR rendering engine project
   WindowManager.cpp                   Win32 window, tray icon, input, IPC command apply
   Renderer.cpp                        D3D11 renderer and HDR/scRGB output
   IpcServer.cpp                       Named Pipe server
+  SettingsStore.cpp                   INI persistence and raw config import/export
   DisplayFill_Windows.vcxproj         Engine project file
 
 DisplayFill_Settings/                 WinUI 3 settings app project
@@ -95,11 +100,24 @@ The settings window exposes runtime controls for:
 - Fill-light frame margin ratio.
 - Rounded corner radius.
 - Visual corner feathering.
+- Outside rounded corner radius.
+- Screen-edge inset in pixels.
+- Center brightness boost.
+- Color temperature and green/magenta tint.
+- Inner and outer shadow strength and spread.
 - Pass-through mode.
 - Pointer-hover opacity.
 - Pointer-hover transition duration.
 - Language selection.
-- Engine refresh and exit actions.
+- Engine refresh, configuration copy/paste, and exit actions.
+
+Settings are persisted in an INI file next to the engine executable:
+
+```text
+DisplayFill_Windows.ini
+```
+
+The settings app can copy the current INI text to the clipboard and paste INI text back into the engine. Pasted configuration is written to disk and applied immediately.
 
 The engine also supports basic direct controls:
 
@@ -145,6 +163,34 @@ Example messages:
 ```
 
 ```json
+{"type":"set","key":"outerCornerRadius","value":32}
+```
+
+```json
+{"type":"set","key":"screenInsetPixels","value":16}
+```
+
+```json
+{"type":"set","key":"centerBrightnessBoost","value":0.18}
+```
+
+```json
+{"type":"set","key":"colorTemperatureShift","value":0.15}
+```
+
+```json
+{"type":"set","key":"colorTintShift","value":-0.1}
+```
+
+```json
+{"type":"set","key":"shadowStrength","value":0.28}
+```
+
+```json
+{"type":"set","key":"shadowSizePixels","value":42}
+```
+
+```json
 {"type":"set","key":"hoverAlpha","value":40}
 ```
 
@@ -166,6 +212,16 @@ Example messages:
 
 ```json
 {"type":"command","name":"exit"}
+```
+
+Raw INI configuration can also be exchanged through IPC:
+
+```json
+{"type":"getConfig"}
+```
+
+```json
+{"type":"setConfig","content":"[DisplayFill]\\r\\ntargetNits=800\\r\\n"}
 ```
 
 Supported language values:
@@ -395,6 +451,13 @@ Important settings include:
 - `frameMarginYRatio`: top/bottom frame height ratio.
 - `holeCornerRadius`: physical center cutout corner radius.
 - `visualCornerFeatherPixels`: shader-based visual edge feathering.
+- `outerCornerRadius`: outside window corner radius.
+- `screenInsetPixels`: distance between the fill-light window and physical screen edge.
+- `centerBrightnessBoost`: additional brightness near the middle of the frame thickness.
+- `colorTemperatureShift`: cool-to-warm color shift.
+- `colorTintShift`: green-to-magenta tint shift.
+- `shadowStrength`: inner and outer shadow intensity.
+- `shadowSizePixels`: soft shadow spread in pixels.
 - `normalWindowAlpha`: normal fill-light window alpha.
 - `mouseHoverWindowAlpha`: fill-light alpha while pointer is near the frame.
 - `hoverOpacityTransitionSeconds`: hover opacity transition duration.
@@ -402,7 +465,15 @@ Important settings include:
 - `startupBreathMaxBrightness`: startup breath maximum brightness ratio.
 - `startupBreathDurationSeconds`: startup breath duration.
 
-At runtime, most of these values can be changed from the WinUI 3 settings window without recompiling.
+At runtime, most of these values can be changed from the WinUI 3 settings window without recompiling. The engine creates and updates `DisplayFill_Windows.ini` automatically.
+
+## Changes In 0.3.0
+
+- Added persistent INI configuration with copy/paste actions in the settings app.
+- Added outside rounded corners and screen-edge inset controls.
+- Added center brightness boost, color temperature, tint, and soft shadow controls.
+- Added a fixed-size settings window and improved direct build output engine discovery.
+- Removed the experimental RGB mode because it did not provide a useful lighting effect.
 
 ## Notes About HDR
 
@@ -457,11 +528,15 @@ DisplayFill_Windows.exe    Win32 + Direct3D 11 HDR 渲染引擎
 - 使用 Win32 Region 实现中间区域命中测试挖空。
 - 支持鼠标穿透模式，可点击补光窗口后方应用。
 - 使用 D3D shader 实现视觉圆角和边缘羽化。
+- 支持外侧圆角和屏幕边距，让补光层更像悬浮灯具。
+- 支持灯管中心亮度增强、色温、色调，以及内外柔和阴影控制。
 - 支持启动亮度呼吸动画。
 - 支持鼠标靠近时补光相框透明度过渡。
 - 提供 WinUI 3 设置窗口进行实时调节。
 - 提供托盘菜单打开设置、切换穿透模式和退出。
 - 使用 Named Pipe IPC 实时更新设置。
+- 在 `DisplayFill_Windows.exe` 同目录持久化 INI 配置。
+- 设置程序支持复制和粘贴配置文本。
 - 提供 x64 和 ARM64 的纯引擎小体积独立 exe 下载。
 
 ## 架构
@@ -500,6 +575,7 @@ DisplayFill_Windows/                  HDR 渲染引擎项目
   WindowManager.cpp                   Win32 窗口、托盘、输入、IPC 命令应用
   Renderer.cpp                        D3D11 渲染器和 HDR/scRGB 输出
   IpcServer.cpp                       Named Pipe 服务端
+  SettingsStore.cpp                   INI 持久化和原始配置导入/导出
   DisplayFill_Windows.vcxproj         引擎项目文件
 
 DisplayFill_Settings/                 WinUI 3 设置程序项目
@@ -522,11 +598,24 @@ ARM64/                                ARM64 构建输出，忽略提交
 - 补光相框比例。
 - 圆角半径。
 - 视觉边缘羽化。
+- 外侧圆角半径。
+- 距离屏幕边缘的边距像素。
+- 灯管中心亮度增强。
+- 色温和绿色/紫红色调。
+- 内外阴影强度和扩散范围。
 - 鼠标穿透模式。
 - 鼠标悬停透明度。
 - 鼠标悬停过渡时间。
 - 语言。
-- 刷新状态和退出引擎。
+- 刷新状态、复制/粘贴配置和退出引擎。
+
+设置会持久化到引擎 exe 同目录的 INI 文件：
+
+```text
+DisplayFill_Windows.ini
+```
+
+设置程序可以把当前 INI 文本复制到剪贴板，也可以从剪贴板粘贴 INI 文本回引擎。粘贴后的配置会写入磁盘并立即应用。
 
 引擎还支持快捷键：
 
@@ -572,6 +661,34 @@ HDR 引擎监听以下 Named Pipe：
 ```
 
 ```json
+{"type":"set","key":"outerCornerRadius","value":32}
+```
+
+```json
+{"type":"set","key":"screenInsetPixels","value":16}
+```
+
+```json
+{"type":"set","key":"centerBrightnessBoost","value":0.18}
+```
+
+```json
+{"type":"set","key":"colorTemperatureShift","value":0.15}
+```
+
+```json
+{"type":"set","key":"colorTintShift","value":-0.1}
+```
+
+```json
+{"type":"set","key":"shadowStrength","value":0.28}
+```
+
+```json
+{"type":"set","key":"shadowSizePixels","value":42}
+```
+
+```json
 {"type":"set","key":"hoverAlpha","value":40}
 ```
 
@@ -593,6 +710,16 @@ HDR 引擎监听以下 Named Pipe：
 
 ```json
 {"type":"command","name":"exit"}
+```
+
+也可以通过 IPC 读取或写入原始 INI 配置：
+
+```json
+{"type":"getConfig"}
+```
+
+```json
+{"type":"setConfig","content":"[DisplayFill]\\r\\ntargetNits=800\\r\\n"}
 ```
 
 支持的语言值：
@@ -822,6 +949,13 @@ DisplayFill_Windows\HDRDriver.h
 - `frameMarginYRatio`：上下相框高度比例。
 - `holeCornerRadius`：中间挖空区域物理圆角半径。
 - `visualCornerFeatherPixels`：shader 视觉边缘羽化。
+- `outerCornerRadius`：窗口外侧圆角半径。
+- `screenInsetPixels`：补光窗口与物理屏幕边缘的距离。
+- `centerBrightnessBoost`：相框厚度中线附近的额外亮度。
+- `colorTemperatureShift`：冷暖色温偏移。
+- `colorTintShift`：绿色到紫红色调偏移。
+- `shadowStrength`：内外阴影强度。
+- `shadowSizePixels`：柔和阴影扩散像素。
 - `normalWindowAlpha`：正常状态窗口透明度。
 - `mouseHoverWindowAlpha`：鼠标靠近时的窗口透明度。
 - `hoverOpacityTransitionSeconds`：悬停透明度过渡时间。
@@ -829,7 +963,15 @@ DisplayFill_Windows\HDRDriver.h
 - `startupBreathMaxBrightness`：启动呼吸动画最高亮度比例。
 - `startupBreathDurationSeconds`：启动呼吸动画时长。
 
-运行时可通过 WinUI 3 设置窗口调整大多数参数，无需重新编译。
+运行时可通过 WinUI 3 设置窗口调整大多数参数，无需重新编译。引擎会自动创建和更新 `DisplayFill_Windows.ini`。
+
+## 0.3.0 更新内容
+
+- 新增 INI 配置持久化，并在设置程序中加入复制/粘贴配置操作。
+- 新增外侧圆角和屏幕边距控制。
+- 新增中心亮度增强、色温、色调和柔和阴影控制。
+- 设置窗口改为固定大小，并改善直接构建输出目录下的引擎查找。
+- 移除实验性的 RGB 模式，因为实际补光效果不明显。
 
 ## HDR 注意事项
 

@@ -27,6 +27,9 @@
     <ClCompile Include="Renderer.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="SettingsStore.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
     <ClCompile Include="WindowManager.cpp">
       <Filter>源文件</Filter>
     </ClCompile>

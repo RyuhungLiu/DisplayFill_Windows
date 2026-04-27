@@ -196,16 +196,19 @@ bool WindowManager::CreateMainWindow(HINSTANCE instance)
         workArea.bottom = GetSystemMetrics(SM_CYSCREEN);
     }
 
-    const int windowWidth = workArea.right - workArea.left;
-    const int windowHeight = workArea.bottom - workArea.top;
+    const int inset = AppState::ClampInt(m_appState->settings.screenInsetPixels, 0, (std::min)(monitorWidth, monitorHeight) / 3);
+    const int windowWidth = (std::max)(1, monitorWidth - inset * 2);
+    const int windowHeight = (std::max)(1, monitorHeight - inset * 2);
+    const int windowLeft = monitorInfo.rcMonitor.left + inset;
+    const int windowTop = monitorInfo.rcMonitor.top + inset;
 
     m_hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
         className,
         L"HDR Screen Fill Light",
         WS_POPUP,
-        workArea.left,
-        workArea.top,
+        windowLeft,
+        windowTop,
         windowWidth,
         windowHeight,
         nullptr,
@@ -224,12 +227,17 @@ bool WindowManager::CreateMainWindow(HINSTANCE instance)
     // Initialize state dimensions
     m_appState->clientWidth = windowWidth;
     m_appState->clientHeight = windowHeight;
+    m_appState->windowLeft = windowLeft;
+    m_appState->windowTop = windowTop;
     m_appState->monitorWidth = monitorWidth;
     m_appState->monitorHeight = monitorHeight;
+    m_appState->monitorLeft = monitorInfo.rcMonitor.left;
+    m_appState->monitorTop = monitorInfo.rcMonitor.top;
     m_appState->UpdateMarginsFromSettings();
 
     std::printf("Monitor resolution: %dx%d\n", monitorWidth, monitorHeight);
-    std::printf("Work area: %dx%d at (%ld,%ld)\n", windowWidth, windowHeight, workArea.left, workArea.top);
+    std::printf("Work area: %ldx%ld at (%ld,%ld)\n", workArea.right - workArea.left, workArea.bottom - workArea.top, workArea.left, workArea.top);
+    std::printf("Light window: %dx%d at (%d,%d), screen inset=%d px\n", windowWidth, windowHeight, windowLeft, windowTop, inset);
     std::printf("Frame margins: left/right=%d px, top/bottom=%d px\n", m_appState->marginLeft, m_appState->marginTop);
 
     return true;
@@ -244,7 +252,10 @@ void WindowManager::UpdateWindowRegion()
 
     RECT clientRect = { 0, 0, m_appState->clientWidth, m_appState->clientHeight };
 
-    HRGN fullRegion = CreateRectRgn(clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
+    const int outerRadius = AppState::ClampInt(m_appState->settings.outerCornerRadius, 0, (std::min)(m_appState->clientWidth, m_appState->clientHeight) / 2);
+    HRGN fullRegion = outerRadius > 0
+        ? CreateRoundRectRgn(clientRect.left, clientRect.top, clientRect.right, clientRect.bottom, outerRadius * 2, outerRadius * 2)
+        : CreateRectRgn(clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
     HRGN holeRegion = CreateRoundRectRgn(
         m_appState->holeRect.left,
         m_appState->holeRect.top,
@@ -481,6 +492,7 @@ void WindowManager::TogglePassThroughMode()
 {
     m_appState->settings.passThroughMode = !m_appState->settings.passThroughMode;
     ApplyPassThroughMode();
+    SaveCurrentSettings();
 }
 
 void WindowManager::ApplyFrameSettings()
@@ -490,10 +502,29 @@ void WindowManager::ApplyFrameSettings()
     m_appState->renderNeeded = true;
 }
 
+void WindowManager::ApplyScreenInset()
+{
+    if (!m_hwnd || !m_appState)
+    {
+        return;
+    }
+
+    const int inset = AppState::ClampInt(m_appState->settings.screenInsetPixels, 0, (std::min)(m_appState->monitorWidth, m_appState->monitorHeight) / 3);
+    const int width = (std::max)(1, m_appState->monitorWidth - inset * 2);
+    const int height = (std::max)(1, m_appState->monitorHeight - inset * 2);
+    const int left = m_appState->monitorLeft + inset;
+    const int top = m_appState->monitorTop + inset;
+
+    m_appState->windowLeft = left;
+    m_appState->windowTop = top;
+    SetWindowPos(m_hwnd, HWND_TOPMOST, left, top, width, height, SWP_NOACTIVATE);
+}
+
 void WindowManager::SetTargetNits(float nits)
 {
     m_appState->settings.targetNits = nits;
     m_appState->renderNeeded = true;
+    SaveCurrentSettings();
     std::printf("Target brightness: %.0f nits\n", nits);
 }
 
@@ -502,6 +533,7 @@ void WindowManager::SetFrameMarginRatio(float ratio)
     m_appState->settings.frameMarginXRatio = ratio;
     m_appState->settings.frameMarginYRatio = ratio;
     ApplyFrameSettings();
+    SaveCurrentSettings();
     std::printf("Frame margin ratio: %.0f%%\n", ratio * 100.0f);
 }
 
@@ -509,6 +541,7 @@ void WindowManager::SetHoverAlpha(BYTE alpha)
 {
     m_appState->settings.mouseHoverWindowAlpha = alpha;
     m_opacityTargetAlpha = IsCursorOverFrame() ? alpha : m_appState->settings.normalWindowAlpha;
+    SaveCurrentSettings();
     std::printf("Hover alpha: %u\n", static_cast<unsigned int>(alpha));
 }
 
@@ -516,6 +549,15 @@ void WindowManager::SetLanguage(AppLanguage language)
 {
     m_appState->settings.language = language;
     UpdateTrayTooltip();
+    SaveCurrentSettings();
+}
+
+void WindowManager::SaveCurrentSettings() const
+{
+    if (m_appState)
+    {
+        SaveSettingsToIni(m_appState->settings);
+    }
 }
 
 void WindowManager::OnIpcCommand(IpcCommand* command)
@@ -536,6 +578,12 @@ void WindowManager::OnIpcCommand(IpcCommand* command)
         TogglePassThroughMode();
         return;
 
+    case IpcCommandType::ReloadConfig:
+        ApplyScreenInset();
+        ApplyFrameSettings();
+        ApplyPassThroughMode();
+        return;
+
     case IpcCommandType::SetValue:
         break;
     }
@@ -553,26 +601,74 @@ void WindowManager::OnIpcCommand(IpcCommand* command)
     {
         m_appState->settings.frameMarginXRatio = static_cast<float>(scopedCommand->numberValue);
         ApplyFrameSettings();
+        SaveCurrentSettings();
     }
     else if (key == L"frameMarginYRatio" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.frameMarginYRatio = static_cast<float>(scopedCommand->numberValue);
         ApplyFrameSettings();
+        SaveCurrentSettings();
     }
     else if (key == L"cornerRadius" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.holeCornerRadius = AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 480);
         UpdateWindowRegion();
         m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"outerCornerRadius" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.outerCornerRadius = AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 480);
+        UpdateWindowRegion();
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"screenInsetPixels" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.screenInsetPixels = AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 2000);
+        ApplyScreenInset();
+        SaveCurrentSettings();
     }
     else if (key == L"visualCornerFeatherPixels" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.visualCornerFeatherPixels = static_cast<float>(scopedCommand->numberValue);
         m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"centerBrightnessBoost" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.centerBrightnessBoost = AppState::Clamp(static_cast<float>(scopedCommand->numberValue), 0.0f, 1.0f);
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"colorTemperatureShift" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.colorTemperatureShift = AppState::Clamp(static_cast<float>(scopedCommand->numberValue), -1.0f, 1.0f);
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"colorTintShift" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.colorTintShift = AppState::Clamp(static_cast<float>(scopedCommand->numberValue), -1.0f, 1.0f);
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"shadowStrength" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.shadowStrength = AppState::Clamp(static_cast<float>(scopedCommand->numberValue), 0.0f, 1.0f);
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
+    }
+    else if (key == L"shadowSizePixels" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.shadowSizePixels = AppState::Clamp(static_cast<float>(scopedCommand->numberValue), 0.0f, 160.0f);
+        m_appState->renderNeeded = true;
+        SaveCurrentSettings();
     }
     else if (key == L"normalAlpha" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.normalWindowAlpha = static_cast<BYTE>(AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 255));
+        SaveCurrentSettings();
     }
     else if ((key == L"hoverAlpha" || key == L"mouseHoverWindowAlpha") && scopedCommand->valueType == IpcValueType::Number)
     {
@@ -581,26 +677,31 @@ void WindowManager::OnIpcCommand(IpcCommand* command)
     else if (key == L"hoverTransitionSeconds" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.hoverOpacityTransitionSeconds = static_cast<float>(scopedCommand->numberValue);
+        SaveCurrentSettings();
     }
     else if (key == L"startupBreathMinBrightness" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.startupBreathMinBrightness = static_cast<float>(scopedCommand->numberValue);
         m_appState->renderNeeded = true;
+        SaveCurrentSettings();
     }
     else if (key == L"startupBreathMaxBrightness" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.startupBreathMaxBrightness = static_cast<float>(scopedCommand->numberValue);
         m_appState->renderNeeded = true;
+        SaveCurrentSettings();
     }
     else if (key == L"startupBreathDurationSeconds" && scopedCommand->valueType == IpcValueType::Number)
     {
         m_appState->settings.startupBreathDurationSeconds = static_cast<float>(scopedCommand->numberValue);
         m_appState->renderNeeded = true;
+        SaveCurrentSettings();
     }
     else if (key == L"passThroughMode" && scopedCommand->valueType == IpcValueType::Boolean)
     {
         m_appState->settings.passThroughMode = scopedCommand->boolValue;
         ApplyPassThroughMode();
+        SaveCurrentSettings();
     }
     else if (key == L"language" && scopedCommand->valueType == IpcValueType::Language)
     {

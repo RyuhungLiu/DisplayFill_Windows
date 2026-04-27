@@ -191,6 +191,7 @@
         <ClCompile Include="main.cpp" />
         <ClCompile Include="IpcServer.cpp" />
         <ClCompile Include="Renderer.cpp" />
+        <ClCompile Include="SettingsStore.cpp" />
         <ClCompile Include="WindowManager.cpp" />
     </ItemGroup>
   <ItemGroup>
