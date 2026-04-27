@@ -16,7 +16,10 @@
 #include <shellapi.h>
 #include <wrl/client.h>
 
+#include <atomic>
 #include <memory>
+#include <string>
+#include <thread>
 
 #pragma comment(lib, "d3d11.lib")
 #pragma comment(lib, "dxgi.lib")
@@ -35,6 +38,8 @@ namespace hdr_driver
 
 constexpr wchar_t kWindowClassName[] = L"HdrScreenFillWindow";
 constexpr UINT kTrayIconMessage = WM_APP + 1;
+constexpr UINT kIpcApplyMessage = WM_APP + 2;
+constexpr wchar_t kIpcPipeName[] = L"\\\\.\\pipe\\DisplayFill_Windows_Control";
 
 // scRGB 中 1.0 通常约等于 80 nits，程序会用 targetNits / 80 计算 HDR 白色强度。
 constexpr float kSdrReferenceWhiteNits = 80.0f;
@@ -131,6 +136,31 @@ struct AppSettings
 
 class Renderer;
 class WindowManager;
+class IpcServer;
+
+enum class IpcCommandType
+{
+    SetValue,
+    TogglePassThrough,
+    Exit,
+};
+
+enum class IpcValueType
+{
+    Number,
+    Boolean,
+    Language,
+};
+
+struct IpcCommand
+{
+    IpcCommandType commandType = IpcCommandType::SetValue;
+    IpcValueType valueType = IpcValueType::Number;
+    wchar_t key[64] = {};
+    double numberValue = 0.0;
+    bool boolValue = false;
+    AppLanguage languageValue = AppLanguage::ZhHans;
+};
 
 //=============================================================================
 // AppState
@@ -301,6 +331,7 @@ private:
     void UpdateTrayTooltip();
     void ShowTrayMenu();
     void OnTrayIcon(LPARAM lParam);
+    void OpenSettingsApp();
     void ApplyPassThroughMode();
     void TogglePassThroughMode();
     void ApplyFrameSettings();
@@ -308,6 +339,7 @@ private:
     void SetFrameMarginRatio(float ratio);
     void SetHoverAlpha(BYTE alpha);
     void SetLanguage(AppLanguage language);
+    void OnIpcCommand(IpcCommand* command);
     bool IsCursorOverFrame() const;
     bool UpdateHoverOpacity();
 
@@ -325,9 +357,33 @@ private:
     ULONGLONG m_opacityTransitionStartTick = 0;
     NOTIFYICONDATAW m_trayIconData = {};
     bool m_trayIconAdded = false;
+    std::unique_ptr<IpcServer> m_ipcServer;
 
     AppState* m_appState = nullptr;
     Renderer* m_renderer = nullptr;
+};
+
+class IpcServer
+{
+public:
+    IpcServer(HWND targetWindow, AppState* appState);
+    ~IpcServer();
+
+    bool Start();
+    void Stop();
+
+private:
+    void WorkerLoop();
+    void HandleClient(HANDLE pipeHandle);
+    std::string HandleMessage(const std::string& message);
+    std::string BuildStateJson() const;
+    bool TryCreateCommand(const std::string& message, IpcCommand& command) const;
+    void PostCommand(const IpcCommand& command) const;
+
+    HWND m_targetWindow = nullptr;
+    AppState* m_appState = nullptr;
+    std::atomic_bool m_running = false;
+    std::thread m_worker;
 };
 
 //=============================================================================

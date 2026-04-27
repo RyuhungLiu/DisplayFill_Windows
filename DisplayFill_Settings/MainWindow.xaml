@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="DisplayFill_Settings.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DisplayFill_Settings"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="DisplayFill Settings">
+
+    <Window.SystemBackdrop>
+        <DesktopAcrylicBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid" MinWidth="560" MinHeight="780" Background="Transparent">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="CardSurfaceBrush" Color="#1AFFFFFF" />
+            <SolidColorBrush x:Key="CardStrokeBrush" Color="#26000000" />
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#FF1F2937" />
+            <SolidColorBrush x:Key="SubtleTextBrush" Color="#FF4B5563" />
+            <SolidColorBrush x:Key="MutedTextBrush" Color="#FF667085" />
+            <SolidColorBrush x:Key="TargetNitsReadoutBrush" Color="#FF8A5A00" />
+            <SolidColorBrush x:Key="BadgeConnectedBrush" Color="#FF57D681" />
+            <SolidColorBrush x:Key="BadgeDisconnectedBrush" Color="#FFFF6262" />
+
+            <Style x:Key="CardBorderStyle" TargetType="Border">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="Padding" Value="4,10" />
+                <Setter Property="Margin" Value="0,0,0,6" />
+            </Style>
+
+            <Style x:Key="SettingTitleTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="14" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" />
+                <Setter Property="TextWrapping" Value="NoWrap" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+            </Style>
+
+            <Style x:Key="SettingDescriptionTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="{StaticResource MutedTextBrush}" />
+                <Setter Property="TextWrapping" Value="WrapWholeWords" />
+                <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            </Style>
+
+            <Style x:Key="ReadoutTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="HorizontalAlignment" Value="Right" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="TextAlignment" Value="Right" />
+            </Style>
+
+            <Style x:Key="FillSliderStyle" TargetType="Slider">
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="VerticalAlignment" Value="Center" />
+                <Setter Property="MinWidth" Value="260" />
+            </Style>
+
+            <Style x:Key="ActionButtonStyle" TargetType="Button">
+                <Setter Property="MinHeight" Value="38" />
+                <Setter Property="CornerRadius" Value="8" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+        </Grid.Resources>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="TitleBar" Grid.Row="0" MinHeight="82" Padding="20,12,154,12" Background="Transparent">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Width="42" Height="42" CornerRadius="12" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFFFE27A" Offset="0" />
+                        <GradientStop Color="#FFFFA726" Offset="0.52" />
+                        <GradientStop Color="#FF8BD7FF" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <FontIcon Glyph="&#xE706;" FontSize="21" Foreground="#FF202020" />
+            </Border>
+
+            <Grid Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center" RowSpacing="4">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <TextBlock x:Name="AppTitleText" Text="DisplayFill" FontSize="22" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis" />
+
+                <Grid Grid.Row="1" ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border x:Name="ConnectionBadge" Width="10" Height="10" CornerRadius="5" Background="{StaticResource BadgeConnectedBrush}" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ConnectionStatusText" Grid.Column="1" Text="Connecting to HDR engine..." FontSize="12" Foreground="{StaticResource SubtleTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <ScrollViewer x:Name="SettingsScrollViewer" Grid.Row="1" Padding="0" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <Grid Width="{Binding ViewportWidth, ElementName=SettingsScrollViewer}" Padding="20,8,24,20" RowSpacing="12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Expander x:Name="HdrExpander" Header="HDR" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
+                    <Border Style="{StaticResource CardBorderStyle}" Margin="0,8,0,0">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="96" />
+                            </Grid.ColumnDefinitions>
+
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock x:Name="TargetBrightnessText" Text="Target Brightness" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="HDR fill brightness" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+
+                            <Slider x:Name="TargetNitsSlider" Grid.Column="1" Minimum="80" Maximum="2000" Value="1000" StepFrequency="20" Style="{StaticResource FillSliderStyle}" />
+
+                            <Border Grid.Column="2" MinHeight="34" Padding="8,5" CornerRadius="8" BorderThickness="1" BorderBrush="{StaticResource CardStrokeBrush}" Background="#26FFFFFF" VerticalAlignment="Center">
+                                <TextBlock x:Name="TargetNitsValueText" Text="1000 nits" Foreground="{StaticResource TargetNitsReadoutBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Border>
+                        </Grid>
+                    </Border>
+                </Expander>
+
+                <Expander x:Name="FrameExpander" Grid.Row="1" Header="Frame" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
+                    <Grid Margin="0,8,0,0" RowSpacing="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Style="{StaticResource CardBorderStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="FrameMarginText" Text="Frame Margin" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Border width ratio" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="FrameMarginSlider" Grid.Column="1" Minimum="0.03" Maximum="0.18" Value="0.08" StepFrequency="0.01" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="FrameMarginValueText" Grid.Column="2" Text="8%" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="CornerRadiusText" Text="Corner Radius" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Rounded corner size" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="CornerRadiusSlider" Grid.Column="1" Minimum="0" Maximum="240" Value="60" StepFrequency="5" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="CornerRadiusValueText" Grid.Column="2" Text="60 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="VisualFeatherText" Text="Visual Feather" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Soft edge transition" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="CornerFeatherSlider" Grid.Column="1" Minimum="0" Maximum="64" Value="24" StepFrequency="1" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="CornerFeatherValueText" Grid.Column="2" Text="24 px" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Expander>
+
+                <Expander x:Name="WindowExpander" Grid.Row="2" Header="Window" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
+                    <Grid Margin="0,8,0,0" RowSpacing="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Border Style="{StaticResource CardBorderStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="PassThroughText" Text="Pass-through Mode" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Let mouse input pass through the fill layer" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <ToggleSwitch x:Name="PassThroughToggle" Grid.Column="1" Header="" IsOn="True" MinWidth="116" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="1" Style="{StaticResource CardBorderStyle}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="HoverAlphaText" Text="Hover Alpha" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Opacity while pointer is nearby" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="HoverAlphaSlider" Grid.Column="1" Minimum="0" Maximum="255" Value="40" StepFrequency="1" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="HoverAlphaValueText" Grid.Column="2" Text="40" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+
+                        <Border Grid.Row="2" Style="{StaticResource CardBorderStyle}" Margin="0">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="72" />
+                                </Grid.ColumnDefinitions>
+                                <Grid RowSpacing="2" VerticalAlignment="Center">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <TextBlock x:Name="HoverTransitionText" Text="Hover Transition" Style="{StaticResource SettingTitleTextStyle}" />
+                                    <TextBlock Grid.Row="1" Text="Fade duration" Style="{StaticResource SettingDescriptionTextStyle}" />
+                                </Grid>
+                                <Slider x:Name="HoverTransitionSlider" Grid.Column="1" Minimum="0.05" Maximum="2.0" Value="0.45" StepFrequency="0.05" Style="{StaticResource FillSliderStyle}" />
+                                <TextBlock x:Name="HoverTransitionValueText" Grid.Column="2" Text="0.45 s" Foreground="{StaticResource SubtleTextBrush}" Style="{StaticResource ReadoutTextStyle}" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Expander>
+
+                <Expander x:Name="LanguageExpander" Grid.Row="3" Header="Language" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
+                    <Border Style="{StaticResource CardBorderStyle}" Margin="0,8,0,0">
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="220" />
+                            </Grid.ColumnDefinitions>
+                            <Grid RowSpacing="2" VerticalAlignment="Center">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Display Language" Style="{StaticResource SettingTitleTextStyle}" />
+                                <TextBlock Grid.Row="1" Text="Applies to this window and the HDR engine" Style="{StaticResource SettingDescriptionTextStyle}" />
+                            </Grid>
+                            <ComboBox x:Name="LanguageComboBox" Grid.Column="1" SelectedIndex="0" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                <ComboBoxItem Content="简体中文" Tag="zh-Hans" />
+                                <ComboBoxItem Content="繁體中文" Tag="zh-Hant" />
+                                <ComboBoxItem Content="English (United States)" Tag="en-US" />
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+                </Expander>
+
+                <Expander x:Name="ActionsExpander" Grid.Row="4" Header="Actions" IsExpanded="False" HorizontalAlignment="Stretch" Background="Transparent">
+                    <Grid Margin="0,8,0,0" RowSpacing="8">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <Button x:Name="RefreshButton" Content="Refresh" Style="{StaticResource ActionButtonStyle}" />
+                        <Button x:Name="ExitEngineButton" Grid.Row="1" Content="Exit Engine" Style="{StaticResource ActionButtonStyle}" />
+                    </Grid>
+                </Expander>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>

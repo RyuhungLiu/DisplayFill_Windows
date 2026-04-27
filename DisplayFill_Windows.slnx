@@ -4,5 +4,8 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="DisplayFill_Windows/DisplayFill_Windows.vcxproj" />
+  <Project Path="DisplayFill_Windows/DisplayFill_Windows.vcxproj" Id="61014635-f692-49cb-b4a9-948629dcf5ae" />
+  <Project Path="DisplayFill_Settings/DisplayFill_Settings.vcxproj" Id="5bd3e2cd-72c8-4cb4-abef-f83279f5deaf">
+    <Deploy />
+  </Project>
 </Solution>

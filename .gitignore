@@ -20,6 +20,7 @@ DisplayFill_Windows/ARM64/
 DisplayFill_Windows/DisplayF.*/
 
 # C/C++ build intermediates
+Generated Files/
 *.obj
 *.iobj
 *.pdb
@@ -46,11 +47,14 @@ DisplayFill_Windows/DisplayF.*/
 *.dll
 *.lib
 *.exp
+*.zip
 *.appx
 *.appxbundle
 *.msix
 *.msixbundle
 *.nupkg
+packages/
+run/
 
 # Test and coverage output
 TestResults/

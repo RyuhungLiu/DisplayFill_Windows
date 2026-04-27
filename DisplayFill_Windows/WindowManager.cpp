@@ -126,12 +126,23 @@ bool WindowManager::Initialize(HINSTANCE instance, AppState* appState, Renderer*
     RegisterHotkeys();
     ApplyPassThroughMode();
     AddTrayIcon();
+    m_ipcServer = std::make_unique<IpcServer>(m_hwnd, m_appState);
+    if (!m_ipcServer->Start())
+    {
+        std::printf("IPC server failed to start.\n");
+    }
 
     return true;
 }
 
 void WindowManager::Shutdown()
 {
+    if (m_ipcServer)
+    {
+        m_ipcServer->Stop();
+        m_ipcServer.reset();
+    }
+
     RemoveTrayIcon();
     UnregisterHotkeys();
 
@@ -189,7 +200,7 @@ bool WindowManager::CreateMainWindow(HINSTANCE instance)
     const int windowHeight = workArea.bottom - workArea.top;
 
     m_hwnd = CreateWindowExW(
-        WS_EX_TOPMOST | WS_EX_LAYERED,
+        WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
         className,
         L"HDR Screen Fill Light",
         WS_POPUP,
@@ -366,7 +377,7 @@ void WindowManager::ShowTrayMenu()
 
     const LocalizedText& text = GetText(m_appState->settings.language);
 
-    AppendMenuW(menu, MF_STRING | MF_DISABLED, kTrayMenuOpenSettings, text.settingsTitle);
+    AppendMenuW(menu, MF_STRING, kTrayMenuOpenSettings, text.settingsTitle);
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     AppendMenuW(menu, MF_STRING | (m_appState->settings.passThroughMode ? MF_CHECKED : MF_UNCHECKED),
@@ -415,6 +426,29 @@ void WindowManager::OnTrayIcon(LPARAM lParam)
     else if (message == WM_LBUTTONDBLCLK)
     {
         TogglePassThroughMode();
+    }
+}
+
+void WindowManager::OpenSettingsApp()
+{
+    wchar_t modulePath[MAX_PATH] = {};
+    GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
+
+    wchar_t* lastSlash = wcsrchr(modulePath, L'\\');
+    if (!lastSlash)
+    {
+        return;
+    }
+
+    *(lastSlash + 1) = L'\0';
+    wchar_t settingsPath[MAX_PATH] = {};
+    wcscpy_s(settingsPath, modulePath);
+    wcscat_s(settingsPath, L"DisplayFill_Settings.exe");
+
+    HINSTANCE result = ShellExecuteW(m_hwnd, L"open", settingsPath, nullptr, modulePath, SW_SHOWNORMAL);
+    if (reinterpret_cast<INT_PTR>(result) <= 32)
+    {
+        MessageBoxW(m_hwnd, L"无法打开 DisplayFill_Settings.exe。请确认设置程序与 HDR 引擎位于同一目录。", L"DisplayFill", MB_OK | MB_ICONWARNING);
     }
 }
 
@@ -482,6 +516,96 @@ void WindowManager::SetLanguage(AppLanguage language)
 {
     m_appState->settings.language = language;
     UpdateTrayTooltip();
+}
+
+void WindowManager::OnIpcCommand(IpcCommand* command)
+{
+    if (!command)
+    {
+        return;
+    }
+
+    std::unique_ptr<IpcCommand> scopedCommand(command);
+    switch (scopedCommand->commandType)
+    {
+    case IpcCommandType::Exit:
+        DestroyWindow(m_hwnd);
+        return;
+
+    case IpcCommandType::TogglePassThrough:
+        TogglePassThroughMode();
+        return;
+
+    case IpcCommandType::SetValue:
+        break;
+    }
+
+    const std::wstring key(scopedCommand->key);
+    if (key == L"targetNits" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        SetTargetNits(static_cast<float>(scopedCommand->numberValue));
+    }
+    else if (key == L"frameMarginRatio" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        SetFrameMarginRatio(static_cast<float>(scopedCommand->numberValue));
+    }
+    else if (key == L"frameMarginXRatio" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.frameMarginXRatio = static_cast<float>(scopedCommand->numberValue);
+        ApplyFrameSettings();
+    }
+    else if (key == L"frameMarginYRatio" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.frameMarginYRatio = static_cast<float>(scopedCommand->numberValue);
+        ApplyFrameSettings();
+    }
+    else if (key == L"cornerRadius" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.holeCornerRadius = AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 480);
+        UpdateWindowRegion();
+        m_appState->renderNeeded = true;
+    }
+    else if (key == L"visualCornerFeatherPixels" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.visualCornerFeatherPixels = static_cast<float>(scopedCommand->numberValue);
+        m_appState->renderNeeded = true;
+    }
+    else if (key == L"normalAlpha" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.normalWindowAlpha = static_cast<BYTE>(AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 255));
+    }
+    else if ((key == L"hoverAlpha" || key == L"mouseHoverWindowAlpha") && scopedCommand->valueType == IpcValueType::Number)
+    {
+        SetHoverAlpha(static_cast<BYTE>(AppState::ClampInt(static_cast<int>(scopedCommand->numberValue), 0, 255)));
+    }
+    else if (key == L"hoverTransitionSeconds" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.hoverOpacityTransitionSeconds = static_cast<float>(scopedCommand->numberValue);
+    }
+    else if (key == L"startupBreathMinBrightness" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.startupBreathMinBrightness = static_cast<float>(scopedCommand->numberValue);
+        m_appState->renderNeeded = true;
+    }
+    else if (key == L"startupBreathMaxBrightness" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.startupBreathMaxBrightness = static_cast<float>(scopedCommand->numberValue);
+        m_appState->renderNeeded = true;
+    }
+    else if (key == L"startupBreathDurationSeconds" && scopedCommand->valueType == IpcValueType::Number)
+    {
+        m_appState->settings.startupBreathDurationSeconds = static_cast<float>(scopedCommand->numberValue);
+        m_appState->renderNeeded = true;
+    }
+    else if (key == L"passThroughMode" && scopedCommand->valueType == IpcValueType::Boolean)
+    {
+        m_appState->settings.passThroughMode = scopedCommand->boolValue;
+        ApplyPassThroughMode();
+    }
+    else if (key == L"language" && scopedCommand->valueType == IpcValueType::Language)
+    {
+        SetLanguage(scopedCommand->languageValue);
+    }
 }
 
 bool WindowManager::IsCursorOverFrame() const
@@ -552,6 +676,9 @@ void WindowManager::OnCommand(UINT commandId)
 {
     switch (commandId)
     {
+    case kTrayMenuOpenSettings:
+        OpenSettingsApp();
+        break;
     case kTrayMenuTogglePassThrough:
         TogglePassThroughMode();
         break;
@@ -719,6 +846,10 @@ LRESULT CALLBACK WindowManager::WindowProc(HWND hwnd, UINT message, WPARAM wPara
 
     case kTrayIconMessage:
         pThis->OnTrayIcon(lParam);
+        return 0;
+
+    case kIpcApplyMessage:
+        pThis->OnIpcCommand(reinterpret_cast<IpcCommand*>(lParam));
         return 0;
 
     case WM_DESTROY:

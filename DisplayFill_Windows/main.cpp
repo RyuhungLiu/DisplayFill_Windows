@@ -7,13 +7,14 @@ int main()
 {
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
+#if defined(_DEBUG)
     EnsureConsole();
-
     std::printf("=== HDR Screen Fill Light ===\n");
     std::printf("ESC or Double-click: Exit\n");
     std::printf("Ctrl+F6: Toggle pass-through mode, default ON\n");
     std::printf("Tray icon: right-click for settings\n");
     std::printf("===============================\n\n");
+#endif
 
     HINSTANCE instance = GetModuleHandleW(nullptr);
     if (!instance)

@@ -13,10 +13,41 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="WinUISettings">
+      <UniqueIdentifier>{1B36A5F1-D269-4E7C-A9C1-C0C890471607}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
       <Filter>源文件</Filter>
     </ClCompile>
+    <ClCompile Include="IpcServer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="Renderer.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+    <ClCompile Include="WindowManager.cpp">
+      <Filter>源文件</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="HDRDriver.h">
+      <Filter>头文件</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="WinUISettings\README.md">
+      <Filter>WinUISettings</Filter>
+    </None>
+    <None Include="WinUISettings\SettingsWindow.xaml">
+      <Filter>WinUISettings</Filter>
+    </None>
+    <None Include="WinUISettings\SettingsWindow.xaml.h">
+      <Filter>WinUISettings</Filter>
+    </None>
+    <None Include="WinUISettings\SettingsWindow.xaml.cpp">
+      <Filter>WinUISettings</Filter>
+    </None>
   </ItemGroup>
 </Project>
