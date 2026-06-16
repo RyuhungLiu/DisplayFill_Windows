@@ -33,7 +33,8 @@ set "OUT_ROOT=ARM64"
 goto :main
 
 :main
-set "SETTINGS_OUT=%ROOT%%OUT_ROOT%\Release\DisplayFill_Settings"
+set "OUTPUT_ROOT=%ROOT%%OUT_ROOT%\Release"
+set "SETTINGS_OUT="
 
 set "RUN_SELF=%ROOT%run\Release-%PLATFORM_LABEL%-SelfContained"
 set "RUN_FD=%ROOT%run\Release-%PLATFORM_LABEL%-FrameworkDependent"
@@ -73,13 +74,12 @@ mkdir "%RUN_FD%"
 if errorlevel 1 exit /b %errorlevel%
 
 echo [3/9] Building %CONFIG% %PLATFORM_LABEL% SelfContained...
+if exist "%OUTPUT_ROOT%" rmdir /s /q "%OUTPUT_ROOT%"
 "%MSBUILD%" "%ROOT%DisplayFill_Windows.slnx" /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /p:WindowsAppSDKSelfContained=true
 if errorlevel 1 exit /b %errorlevel%
 
-if not exist "%SETTINGS_OUT%" (
-    echo ERROR: Settings output folder not found: %SETTINGS_OUT%
-    exit /b 1
-)
+call :resolve_settings_out
+if errorlevel 1 exit /b %errorlevel%
 
 echo [4/9] Creating SelfContained runtime folder...
 robocopy "%SETTINGS_OUT%" "%RUN_SELF%" /E /XF *.pdb *.ilk *.exp *.lib *.iobj *.ipdb *.recipe *.appxrecipe *.log *.tlog *.lastbuildstate
@@ -96,13 +96,12 @@ call :zip_folder "%RUN_SELF%" "%ZIP_SELF%"
 if errorlevel 1 exit /b %errorlevel%
 
 echo [6/9] Building %CONFIG% %PLATFORM_LABEL% FrameworkDependent...
+if exist "%OUTPUT_ROOT%" rmdir /s /q "%OUTPUT_ROOT%"
 "%MSBUILD%" "%ROOT%DisplayFill_Windows.slnx" /p:Configuration=%CONFIG% /p:Platform=%PLATFORM% /p:WindowsAppSDKSelfContained=false
 if errorlevel 1 exit /b %errorlevel%
 
-if not exist "%SETTINGS_OUT%" (
-    echo ERROR: Settings output folder not found after FrameworkDependent build: %SETTINGS_OUT%
-    exit /b 1
-)
+call :resolve_settings_out
+if errorlevel 1 exit /b %errorlevel%
 
 echo [7/9] Creating FrameworkDependent runtime folder...
 call :copy_framework_dependent_files
@@ -150,6 +149,19 @@ echo.
 
 endlocal
 exit /b 0
+
+
+:resolve_settings_out
+set "SETTINGS_OUT=%OUTPUT_ROOT%\DisplayFill_Settings"
+if exist "%SETTINGS_OUT%\DisplayFill_Settings.exe" exit /b 0
+
+set "SETTINGS_OUT=%OUTPUT_ROOT%"
+if exist "%SETTINGS_OUT%\DisplayFill_Settings.exe" exit /b 0
+
+echo ERROR: Settings output folder not found under:
+echo   %OUTPUT_ROOT%\DisplayFill_Settings
+echo   %OUTPUT_ROOT%
+exit /b 1
 
 
 :copy_framework_dependent_files

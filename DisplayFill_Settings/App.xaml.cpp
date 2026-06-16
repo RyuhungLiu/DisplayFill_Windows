@@ -1,6 +1,9 @@
 #include "pch.h"
 #include "App.xaml.h"
 #include "MainWindow.xaml.h"
+#if __has_include("XamlMetaDataProvider.g.cpp")
+#include "XamlMetaDataProvider.g.cpp"
+#endif
 
 using namespace winrt;
 using namespace Microsoft::UI::Xaml;
