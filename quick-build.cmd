@@ -34,7 +34,6 @@ goto :main
 
 :main
 set "SETTINGS_OUT=%ROOT%%OUT_ROOT%\Release\DisplayFill_Settings"
-set "ENGINE_EXE=%ROOT%%OUT_ROOT%\Release\DisplayFill_Windows.exe"
 
 set "RUN_SELF=%ROOT%run\Release-%PLATFORM_LABEL%-SelfContained"
 set "RUN_FD=%ROOT%run\Release-%PLATFORM_LABEL%-FrameworkDependent"
@@ -82,17 +81,9 @@ if not exist "%SETTINGS_OUT%" (
     exit /b 1
 )
 
-if not exist "%ENGINE_EXE%" (
-    echo ERROR: Engine executable not found: %ENGINE_EXE%
-    exit /b 1
-)
-
 echo [4/9] Creating SelfContained runtime folder...
 robocopy "%SETTINGS_OUT%" "%RUN_SELF%" /E /XF *.pdb *.ilk *.exp *.lib *.iobj *.ipdb *.recipe *.appxrecipe *.log *.tlog *.lastbuildstate
 if %errorlevel% GTR 7 exit /b %errorlevel%
-
-copy /Y "%ENGINE_EXE%" "%RUN_SELF%\DisplayFill_Windows.exe" >nul
-if errorlevel 1 exit /b %errorlevel%
 
 call :write_launcher "%RUN_SELF%"
 call :write_readme_self "%RUN_SELF%"
@@ -110,11 +101,6 @@ if errorlevel 1 exit /b %errorlevel%
 
 if not exist "%SETTINGS_OUT%" (
     echo ERROR: Settings output folder not found after FrameworkDependent build: %SETTINGS_OUT%
-    exit /b 1
-)
-
-if not exist "%ENGINE_EXE%" (
-    echo ERROR: Engine executable not found after FrameworkDependent build: %ENGINE_EXE%
     exit /b 1
 )
 
@@ -169,36 +155,13 @@ exit /b 0
 :copy_framework_dependent_files
 if not exist "%RUN_FD%" mkdir "%RUN_FD%"
 
-copy /Y "%SETTINGS_OUT%\DisplayFill_Settings.exe" "%RUN_FD%\DisplayFill_Settings.exe" >nul
-if errorlevel 1 exit /b %errorlevel%
+robocopy "%SETTINGS_OUT%" "%RUN_FD%" /E /XF *.pdb *.ilk *.exp *.lib *.iobj *.ipdb *.recipe *.appxrecipe *.log *.tlog *.lastbuildstate
+if %errorlevel% GTR 7 exit /b %errorlevel%
 
-if exist "%SETTINGS_OUT%\DisplayFill_Settings.pri" (
-    copy /Y "%SETTINGS_OUT%\DisplayFill_Settings.pri" "%RUN_FD%\DisplayFill_Settings.pri" >nul
-    if errorlevel 1 exit /b %errorlevel%
+if not exist "%RUN_FD%\Microsoft.WindowsAppRuntime.Bootstrap.dll" (
+    echo ERROR: FrameworkDependent package is missing Microsoft.WindowsAppRuntime.Bootstrap.dll.
+    exit /b 1
 )
-
-if exist "%SETTINGS_OUT%\DisplayFill_Settings.winmd" (
-    copy /Y "%SETTINGS_OUT%\DisplayFill_Settings.winmd" "%RUN_FD%\DisplayFill_Settings.winmd" >nul
-    if errorlevel 1 exit /b %errorlevel%
-)
-
-if exist "%SETTINGS_OUT%\App.xbf" (
-    copy /Y "%SETTINGS_OUT%\App.xbf" "%RUN_FD%\App.xbf" >nul
-    if errorlevel 1 exit /b %errorlevel%
-)
-
-if exist "%SETTINGS_OUT%\MainWindow.xbf" (
-    copy /Y "%SETTINGS_OUT%\MainWindow.xbf" "%RUN_FD%\MainWindow.xbf" >nul
-    if errorlevel 1 exit /b %errorlevel%
-)
-
-if exist "%SETTINGS_OUT%\Assets" (
-    robocopy "%SETTINGS_OUT%\Assets" "%RUN_FD%\Assets" /E
-    if %errorlevel% GTR 7 exit /b %errorlevel%
-)
-
-copy /Y "%ENGINE_EXE%" "%RUN_FD%\DisplayFill_Windows.exe" >nul
-if errorlevel 1 exit /b %errorlevel%
 
 exit /b 0
 
@@ -232,7 +195,7 @@ set "TARGET_DIR=%~1"
     echo This folder includes the Windows App SDK / WinUI 3 runtime files.
     echo No separate Windows App Runtime installation is required.
     echo.
-    echo DisplayFill_Settings.exe starts DisplayFill_Windows.exe automatically and controls it through Named Pipe.
+    echo DisplayFill_Settings.exe contains the WinUI settings window and the HDR rendering engine in one process.
 )
 
 exit /b 0
@@ -260,7 +223,7 @@ set "TARGET_DIR=%~1"
     echo.
     echo If DisplayFill_Settings.exe does not start, install Windows App Runtime 1.8 for your CPU architecture.
     echo.
-    echo DisplayFill_Settings.exe starts DisplayFill_Windows.exe automatically and controls it through Named Pipe.
+    echo DisplayFill_Settings.exe contains the WinUI settings window and the HDR rendering engine in one process.
 )
 
 exit /b 0

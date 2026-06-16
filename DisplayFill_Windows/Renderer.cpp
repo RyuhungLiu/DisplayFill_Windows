@@ -118,6 +118,98 @@ void PrintLastError(const char* message, HRESULT hr)
     std::printf("%s failed. HRESULT=0x%08X\n", message, static_cast<unsigned int>(hr));
 }
 
+bool GetFactoryFromSwapChain(
+    IDXGISwapChain1* swapChain,
+    Microsoft::WRL::ComPtr<IDXGIFactory2>& factory)
+{
+    factory.Reset();
+    if (!swapChain)
+    {
+        return false;
+    }
+
+    HRESULT hr = swapChain->GetParent(IID_PPV_ARGS(&factory));
+    if (FAILED(hr))
+    {
+        PrintLastError("IDXGISwapChain::GetParent(factory)", hr);
+        return false;
+    }
+
+    return true;
+}
+
+bool GetOutputDescForMonitor(
+    IDXGIFactory2* factory,
+    HMONITOR targetMonitor,
+    DXGI_OUTPUT_DESC1& outputDesc)
+{
+    if (!factory || !targetMonitor)
+    {
+        return false;
+    }
+
+    for (UINT adapterIndex = 0;; ++adapterIndex)
+    {
+        Microsoft::WRL::ComPtr<IDXGIAdapter1> adapter;
+        HRESULT hr = factory->EnumAdapters1(adapterIndex, &adapter);
+        if (hr == DXGI_ERROR_NOT_FOUND)
+        {
+            break;
+        }
+        if (FAILED(hr))
+        {
+            PrintLastError("IDXGIFactory::EnumAdapters1", hr);
+            break;
+        }
+
+        for (UINT outputIndex = 0;; ++outputIndex)
+        {
+            Microsoft::WRL::ComPtr<IDXGIOutput> output;
+            hr = adapter->EnumOutputs(outputIndex, &output);
+            if (hr == DXGI_ERROR_NOT_FOUND)
+            {
+                break;
+            }
+            if (FAILED(hr))
+            {
+                PrintLastError("IDXGIAdapter::EnumOutputs", hr);
+                break;
+            }
+
+            DXGI_OUTPUT_DESC legacyDesc = {};
+            hr = output->GetDesc(&legacyDesc);
+            if (FAILED(hr) || legacyDesc.Monitor != targetMonitor)
+            {
+                continue;
+            }
+
+            Microsoft::WRL::ComPtr<IDXGIOutput6> output6;
+            hr = output.As(&output6);
+            if (FAILED(hr))
+            {
+                PrintLastError("Query IDXGIOutput6", hr);
+                return false;
+            }
+
+            hr = output6->GetDesc1(&outputDesc);
+            if (FAILED(hr))
+            {
+                PrintLastError("IDXGIOutput6::GetDesc1", hr);
+                return false;
+            }
+
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool IsAdvancedColorOutput(DXGI_OUTPUT_DESC1 const& outputDesc)
+{
+    return outputDesc.ColorSpace != DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
+}
+
 void EnsureConsole()
 {
     if (!AttachConsole(ATTACH_PARENT_PROCESS))
@@ -301,62 +393,86 @@ bool Renderer::CreateDeviceAndSwapChain(HWND hwnd, int width, int height)
         return false;
     }
 
-    // Enable HDR
-    hr = m_swapChain3->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
-    if (FAILED(hr))
-    {
-        PrintLastError("IDXGISwapChain3::SetColorSpace1(scRGB)", hr);
-        m_hdrActive = false;
-    }
-    else
-    {
-        // Verify HDR support
-        Microsoft::WRL::ComPtr<IDXGIOutput> output;
-        hr = m_swapChain->GetContainingOutput(&output);
-        if (SUCCEEDED(hr))
-        {
-            Microsoft::WRL::ComPtr<IDXGIOutput6> output6;
-            hr = output.As(&output6);
-            if (SUCCEEDED(hr))
-            {
-                UINT colorSpaceSupport = 0;
-                hr = m_swapChain3->CheckColorSpaceSupport(
-                    DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,
-                    &colorSpaceSupport);
-
-                if (SUCCEEDED(hr))
-                {
-                    DXGI_OUTPUT_DESC1 outputDesc = {};
-                    hr = output6->GetDesc1(&outputDesc);
-                    if (SUCCEEDED(hr))
-                    {
-                        bool scRgbSupported = (colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) != 0;
-                        bool windowsHdrEnabled = outputDesc.ColorSpace != DXGI_COLOR_SPACE_RGB_FULL_G22_NONE_P709;
-
-                        m_hdrActive = scRgbSupported && windowsHdrEnabled;
-                        if (!m_hdrActive)
-                        {
-                            std::printf("System HDR support: scRGB=%d, WindowsHDR=%d. Falling back to SDR.\n",
-                                scRgbSupported, windowsHdrEnabled);
-                        }
-                        else
-                        {
-                            std::printf("HDR activated. Max luminance: %.1f nits\n", outputDesc.MaxFullFrameLuminance);
-                        }
-                    }
-                }
-            }
-        }
-
-        if (!m_hdrActive)
-        {
-            m_hdrActive = false;
-        }
-    }
+    RefreshHDRState(hwnd);
 
     std::printf("D3D Feature Level: 0x%X\n", static_cast<unsigned int>(createdFeatureLevel));
 
     return true;
+}
+
+bool Renderer::RefreshHDRState(HWND hwnd)
+{
+    if (hwnd)
+    {
+        m_hwnd = hwnd;
+    }
+
+    if (!m_hwnd || !m_swapChain || !m_swapChain3)
+    {
+        m_hdrActive = false;
+        return m_hdrActive;
+    }
+
+    HRESULT hr = m_swapChain3->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
+    if (FAILED(hr))
+    {
+        PrintLastError("IDXGISwapChain3::SetColorSpace1(scRGB)", hr);
+        m_hdrActive = false;
+        return m_hdrActive;
+    }
+
+    UINT colorSpaceSupport = 0;
+    hr = m_swapChain3->CheckColorSpaceSupport(
+        DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709,
+        &colorSpaceSupport);
+    const bool colorSpaceCheckSucceeded = SUCCEEDED(hr);
+    if (FAILED(hr))
+    {
+        PrintLastError("IDXGISwapChain3::CheckColorSpaceSupport(scRGB)", hr);
+    }
+
+    Microsoft::WRL::ComPtr<IDXGIFactory2> factory;
+    DXGI_OUTPUT_DESC1 outputDesc = {};
+    const HMONITOR targetMonitor = MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTONEAREST);
+    const bool foundTargetOutput =
+        GetFactoryFromSwapChain(m_swapChain.Get(), factory) &&
+        GetOutputDescForMonitor(factory.Get(), targetMonitor, outputDesc);
+
+    bool windowsHdrEnabled = false;
+    if (foundTargetOutput)
+    {
+        windowsHdrEnabled = IsAdvancedColorOutput(outputDesc);
+    }
+    else
+    {
+        std::printf("Unable to match HDR window to a DXGI output. Falling back to SDR status.\n");
+    }
+
+    const bool presentSupport =
+        !colorSpaceCheckSucceeded ||
+        (colorSpaceSupport & DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) != 0;
+    const bool previousHdrActive = m_hdrActive;
+    m_hdrActive = presentSupport && windowsHdrEnabled;
+
+    if (m_hdrActive)
+    {
+        if (!previousHdrActive)
+        {
+            std::printf("HDR activated. Max luminance: %.1f nits, max full-frame luminance: %.1f nits\n",
+                outputDesc.MaxLuminance,
+                outputDesc.MaxFullFrameLuminance);
+        }
+    }
+    else
+    {
+        std::printf("System HDR support: scRGBPresent=%d, WindowsHDR=%d, colorSpace=%d, maxLuminance=%.1f. Falling back to SDR.\n",
+            presentSupport,
+            windowsHdrEnabled,
+            foundTargetOutput ? static_cast<int>(outputDesc.ColorSpace) : -1,
+            foundTargetOutput ? outputDesc.MaxLuminance : 0.0f);
+    }
+
+    return m_hdrActive;
 }
 
 bool Renderer::CreateRenderTarget()
@@ -500,11 +616,7 @@ void Renderer::Resize(int width, int height)
 
     if (m_swapChain3)
     {
-        hr = m_swapChain3->SetColorSpace1(DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709);
-        if (FAILED(hr))
-        {
-            PrintLastError("IDXGISwapChain3::SetColorSpace1 after resize", hr);
-        }
+        RefreshHDRState(m_hwnd);
     }
 
     CreateRenderTarget();
@@ -569,7 +681,12 @@ void Renderer::Render(const AppState& state)
     constants->resolution[0] = static_cast<float>(state.clientWidth);
     constants->resolution[1] = static_cast<float>(state.clientHeight);
     constants->whiteLevel = state.GetWhiteLevel();
-    constants->cornerRadius = static_cast<float>(state.settings.holeCornerRadius);
+    const int holeWidth = (std::max)(1L, state.holeRect.right - state.holeRect.left);
+    const int holeHeight = (std::max)(1L, state.holeRect.bottom - state.holeRect.top);
+    constants->cornerRadius = static_cast<float>(AppState::ClampInt(
+        state.settings.holeCornerRadius,
+        0,
+        static_cast<int>((std::min)(holeWidth, holeHeight) / 2)));
     constants->holeRect[0] = static_cast<float>(state.holeRect.left);
     constants->holeRect[1] = static_cast<float>(state.holeRect.top);
     constants->holeRect[2] = static_cast<float>(state.holeRect.right);

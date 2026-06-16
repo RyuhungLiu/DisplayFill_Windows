@@ -100,6 +100,66 @@ namespace
         }
         return AppLanguage::ZhHans;
     }
+
+    const wchar_t* ThemeModeToIni(AppThemeMode mode)
+    {
+        switch (mode)
+        {
+        case AppThemeMode::Light:
+            return L"light";
+        case AppThemeMode::Dark:
+            return L"dark";
+        case AppThemeMode::System:
+        default:
+            return L"system";
+        }
+    }
+
+    AppThemeMode ReadThemeMode(const std::wstring& path, AppThemeMode fallback)
+    {
+        wchar_t buffer[32] = {};
+        wcscpy_s(buffer, ThemeModeToIni(fallback));
+        GetPrivateProfileStringW(kSection, L"themeMode", buffer, buffer, static_cast<DWORD>(std::size(buffer)), path.c_str());
+        if (wcscmp(buffer, L"light") == 0)
+        {
+            return AppThemeMode::Light;
+        }
+        if (wcscmp(buffer, L"dark") == 0)
+        {
+            return AppThemeMode::Dark;
+        }
+        return AppThemeMode::System;
+    }
+
+    const wchar_t* BackdropKindToIni(AppBackdropKind kind)
+    {
+        switch (kind)
+        {
+        case AppBackdropKind::Mica:
+            return L"mica";
+        case AppBackdropKind::Solid:
+            return L"solid";
+        case AppBackdropKind::Acrylic:
+        default:
+            return L"acrylic";
+        }
+    }
+
+    AppBackdropKind ReadBackdropKind(const std::wstring& path, AppBackdropKind fallback)
+    {
+        wchar_t buffer[32] = {};
+        wcscpy_s(buffer, BackdropKindToIni(fallback));
+        GetPrivateProfileStringW(kSection, L"backdropKind", buffer, buffer, static_cast<DWORD>(std::size(buffer)), path.c_str());
+        if (wcscmp(buffer, L"mica") == 0)
+        {
+            return AppBackdropKind::Mica;
+        }
+        if (wcscmp(buffer, L"solid") == 0)
+        {
+            return AppBackdropKind::Solid;
+        }
+        return AppBackdropKind::Acrylic;
+    }
 }
 
 void LoadSettingsFromIni(AppSettings& settings)
@@ -130,6 +190,9 @@ void LoadSettingsFromIni(AppSettings& settings)
     settings.startupBreathDurationSeconds = ReadFloat(path, L"startupBreathDurationSeconds", settings.startupBreathDurationSeconds, 0.0f, 30.0f);
     settings.passThroughMode = ReadBool(path, L"passThroughMode", settings.passThroughMode);
     settings.language = ReadLanguage(path, settings.language);
+    settings.themeMode = ReadThemeMode(path, settings.themeMode);
+    settings.backdropKind = ReadBackdropKind(path, settings.backdropKind);
+    SaveSettingsToIni(settings);
 }
 
 void SaveSettingsToIni(const AppSettings& settings)
@@ -155,6 +218,8 @@ void SaveSettingsToIni(const AppSettings& settings)
     WriteFloat(path, L"startupBreathDurationSeconds", settings.startupBreathDurationSeconds);
     WriteBool(path, L"passThroughMode", settings.passThroughMode);
     WritePrivateProfileStringW(kSection, L"language", LanguageToIni(settings.language), path.c_str());
+    WritePrivateProfileStringW(kSection, L"themeMode", ThemeModeToIni(settings.themeMode), path.c_str());
+    WritePrivateProfileStringW(kSection, L"backdropKind", BackdropKindToIni(settings.backdropKind), path.c_str());
 }
 
 std::string ReadSettingsIniUtf8()

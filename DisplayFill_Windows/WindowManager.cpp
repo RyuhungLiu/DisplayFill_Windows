@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cwchar>
+#include <string>
 
 namespace hdr_driver
 {
@@ -10,6 +11,7 @@ namespace hdr_driver
 namespace
 {
     WindowManager* g_pWindowManager = nullptr;
+    std::atomic<HWND> g_settingsWindowHandle = nullptr;
 
     struct LocalizedText
     {
@@ -96,6 +98,60 @@ namespace
             return zhHans;
         }
     }
+
+    std::wstring GetAssetPath(wchar_t const* relativePath)
+    {
+        std::wstring modulePath(MAX_PATH, L'\0');
+        DWORD length = 0;
+        while (true)
+        {
+            length = GetModuleFileNameW(nullptr, modulePath.data(), static_cast<DWORD>(modulePath.size()));
+            if (length == 0)
+            {
+                return relativePath;
+            }
+
+            if (length < modulePath.size())
+            {
+                break;
+            }
+
+            modulePath.resize(modulePath.size() * 2);
+        }
+
+        modulePath.resize(length);
+        const size_t slash = modulePath.find_last_of(L"\\/");
+        if (slash == std::wstring::npos)
+        {
+            return relativePath;
+        }
+
+        modulePath.resize(slash + 1);
+        modulePath += relativePath;
+        return modulePath;
+    }
+
+    RECT GetVirtualScreenRect()
+    {
+        RECT rect = {
+            GetSystemMetrics(SM_XVIRTUALSCREEN),
+            GetSystemMetrics(SM_YVIRTUALSCREEN),
+            GetSystemMetrics(SM_XVIRTUALSCREEN) + GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            GetSystemMetrics(SM_YVIRTUALSCREEN) + GetSystemMetrics(SM_CYVIRTUALSCREEN)
+        };
+
+        if (rect.right <= rect.left || rect.bottom <= rect.top)
+        {
+            rect = { 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
+        }
+
+        return rect;
+    }
+}
+
+void SetSettingsWindowHandle(HWND hwnd)
+{
+    g_settingsWindowHandle.store(hwnd);
 }
 
 //=============================================================================
@@ -173,34 +229,20 @@ bool WindowManager::CreateMainWindow(HINSTANCE instance)
         return false;
     }
 
-    HMONITOR primaryMonitor = MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
-    MONITORINFO monitorInfo = {};
-    monitorInfo.cbSize = sizeof(monitorInfo);
-    if (!GetMonitorInfoW(primaryMonitor, &monitorInfo))
+    if (!RefreshMonitorMetrics())
     {
-        std::printf("GetMonitorInfoW failed. GetLastError=%lu\n", GetLastError());
-        monitorInfo.rcMonitor = { 0, 0, GetSystemMetrics(SM_CXSCREEN), GetSystemMetrics(SM_CYSCREEN) };
+        return false;
     }
 
-    const int monitorWidth = monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left;
-    const int monitorHeight = monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top;
-
-    // Get work area to avoid taskbar for the visible window bounds.
-    RECT workArea = {};
-    if (!SystemParametersInfoW(SPI_GETWORKAREA, 0, &workArea, 0))
-    {
-        std::printf("SystemParametersInfoW(SPI_GETWORKAREA) failed. Using screen metrics.\n");
-        workArea.left = 0;
-        workArea.top = 0;
-        workArea.right = GetSystemMetrics(SM_CXSCREEN);
-        workArea.bottom = GetSystemMetrics(SM_CYSCREEN);
-    }
-
+    const int monitorWidth = m_appState->monitorWidth;
+    const int monitorHeight = m_appState->monitorHeight;
+    const int monitorLeft = m_appState->monitorLeft;
+    const int monitorTop = m_appState->monitorTop;
     const int inset = AppState::ClampInt(m_appState->settings.screenInsetPixels, 0, (std::min)(monitorWidth, monitorHeight) / 3);
     const int windowWidth = (std::max)(1, monitorWidth - inset * 2);
     const int windowHeight = (std::max)(1, monitorHeight - inset * 2);
-    const int windowLeft = monitorInfo.rcMonitor.left + inset;
-    const int windowTop = monitorInfo.rcMonitor.top + inset;
+    const int windowLeft = monitorLeft + inset;
+    const int windowTop = monitorTop + inset;
 
     m_hwnd = CreateWindowExW(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TOOLWINDOW,
@@ -229,16 +271,37 @@ bool WindowManager::CreateMainWindow(HINSTANCE instance)
     m_appState->clientHeight = windowHeight;
     m_appState->windowLeft = windowLeft;
     m_appState->windowTop = windowTop;
-    m_appState->monitorWidth = monitorWidth;
-    m_appState->monitorHeight = monitorHeight;
-    m_appState->monitorLeft = monitorInfo.rcMonitor.left;
-    m_appState->monitorTop = monitorInfo.rcMonitor.top;
     m_appState->UpdateMarginsFromSettings();
 
-    std::printf("Monitor resolution: %dx%d\n", monitorWidth, monitorHeight);
-    std::printf("Work area: %ldx%ld at (%ld,%ld)\n", workArea.right - workArea.left, workArea.bottom - workArea.top, workArea.left, workArea.top);
+    std::printf("Monitor resolution: %dx%d at (%d,%d)\n", monitorWidth, monitorHeight, monitorLeft, monitorTop);
     std::printf("Light window: %dx%d at (%d,%d), screen inset=%d px\n", windowWidth, windowHeight, windowLeft, windowTop, inset);
     std::printf("Frame margins: left/right=%d px, top/bottom=%d px\n", m_appState->marginLeft, m_appState->marginTop);
+
+    return true;
+}
+
+bool WindowManager::RefreshMonitorMetrics()
+{
+    if (!m_appState)
+    {
+        return false;
+    }
+
+    HMONITOR primaryMonitor = m_hwnd
+        ? MonitorFromWindow(m_hwnd, MONITOR_DEFAULTTOPRIMARY)
+        : MonitorFromPoint({ 0, 0 }, MONITOR_DEFAULTTOPRIMARY);
+    MONITORINFO monitorInfo = {};
+    monitorInfo.cbSize = sizeof(monitorInfo);
+    if (!GetMonitorInfoW(primaryMonitor, &monitorInfo))
+    {
+        std::printf("GetMonitorInfoW failed. GetLastError=%lu\n", GetLastError());
+        monitorInfo.rcMonitor = GetVirtualScreenRect();
+    }
+
+    m_appState->monitorWidth = static_cast<int>((std::max)(1L, monitorInfo.rcMonitor.right - monitorInfo.rcMonitor.left));
+    m_appState->monitorHeight = static_cast<int>((std::max)(1L, monitorInfo.rcMonitor.bottom - monitorInfo.rcMonitor.top));
+    m_appState->monitorLeft = monitorInfo.rcMonitor.left;
+    m_appState->monitorTop = monitorInfo.rcMonitor.top;
 
     return true;
 }
@@ -256,13 +319,20 @@ void WindowManager::UpdateWindowRegion()
     HRGN fullRegion = outerRadius > 0
         ? CreateRoundRectRgn(clientRect.left, clientRect.top, clientRect.right, clientRect.bottom, outerRadius * 2, outerRadius * 2)
         : CreateRectRgn(clientRect.left, clientRect.top, clientRect.right, clientRect.bottom);
+    const int holeWidth = (std::max)(1L, m_appState->holeRect.right - m_appState->holeRect.left);
+    const int holeHeight = (std::max)(1L, m_appState->holeRect.bottom - m_appState->holeRect.top);
+    const int holeRadius = AppState::ClampInt(
+        m_appState->settings.holeCornerRadius,
+        0,
+        static_cast<int>((std::min)(holeWidth, holeHeight) / 2));
+
     HRGN holeRegion = CreateRoundRectRgn(
         m_appState->holeRect.left,
         m_appState->holeRect.top,
         m_appState->holeRect.right,
         m_appState->holeRect.bottom,
-        m_appState->settings.holeCornerRadius * 2,
-        m_appState->settings.holeCornerRadius * 2);
+        holeRadius * 2,
+        holeRadius * 2);
 
     if (!fullRegion || !holeRegion)
     {
@@ -332,7 +402,16 @@ void WindowManager::AddTrayIcon()
     m_trayIconData.uID = 1;
     m_trayIconData.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     m_trayIconData.uCallbackMessage = kTrayIconMessage;
-    m_trayIconData.hIcon = LoadIconW(nullptr, IDI_APPLICATION);
+    const UINT dpi = m_hwnd ? GetDpiForWindow(m_hwnd) : USER_DEFAULT_SCREEN_DPI;
+    const std::wstring iconPath = GetAssetPath(L"Assets\\SunLight.ico");
+    m_trayIconHandle = static_cast<HICON>(LoadImageW(
+        nullptr,
+        iconPath.c_str(),
+        IMAGE_ICON,
+        GetSystemMetricsForDpi(SM_CXSMICON, dpi),
+        GetSystemMetricsForDpi(SM_CYSMICON, dpi),
+        LR_LOADFROMFILE));
+    m_trayIconData.hIcon = m_trayIconHandle ? m_trayIconHandle : LoadIconW(nullptr, IDI_APPLICATION);
     wcscpy_s(m_trayIconData.szTip, GetText(m_appState->settings.language).tooltip);
 
     m_trayIconAdded = Shell_NotifyIconW(NIM_ADD, &m_trayIconData) != FALSE;
@@ -340,6 +419,11 @@ void WindowManager::AddTrayIcon()
     {
         m_trayIconData.uVersion = NOTIFYICON_VERSION_4;
         Shell_NotifyIconW(NIM_SETVERSION, &m_trayIconData);
+    }
+    else if (m_trayIconHandle)
+    {
+        DestroyIcon(m_trayIconHandle);
+        m_trayIconHandle = nullptr;
     }
 }
 
@@ -361,6 +445,12 @@ void WindowManager::RemoveTrayIcon()
     {
         Shell_NotifyIconW(NIM_DELETE, &m_trayIconData);
         m_trayIconAdded = false;
+    }
+
+    if (m_trayIconHandle)
+    {
+        DestroyIcon(m_trayIconHandle);
+        m_trayIconHandle = nullptr;
     }
 }
 
@@ -442,25 +532,15 @@ void WindowManager::OnTrayIcon(LPARAM lParam)
 
 void WindowManager::OpenSettingsApp()
 {
-    wchar_t modulePath[MAX_PATH] = {};
-    GetModuleFileNameW(nullptr, modulePath, MAX_PATH);
-
-    wchar_t* lastSlash = wcsrchr(modulePath, L'\\');
-    if (!lastSlash)
+    HWND settingsWindow = g_settingsWindowHandle.load();
+    if (settingsWindow && IsWindow(settingsWindow))
     {
+        ShowWindow(settingsWindow, SW_RESTORE);
+        SetForegroundWindow(settingsWindow);
         return;
     }
 
-    *(lastSlash + 1) = L'\0';
-    wchar_t settingsPath[MAX_PATH] = {};
-    wcscpy_s(settingsPath, modulePath);
-    wcscat_s(settingsPath, L"DisplayFill_Settings.exe");
-
-    HINSTANCE result = ShellExecuteW(m_hwnd, L"open", settingsPath, nullptr, modulePath, SW_SHOWNORMAL);
-    if (reinterpret_cast<INT_PTR>(result) <= 32)
-    {
-        MessageBoxW(m_hwnd, L"无法打开 DisplayFill_Settings.exe。请确认设置程序与 HDR 引擎位于同一目录。", L"DisplayFill", MB_OK | MB_ICONWARNING);
-    }
+    MessageBoxW(m_hwnd, L"设置窗口当前不可用。请重新启动 DisplayFill。", L"DisplayFill", MB_OK | MB_ICONWARNING);
 }
 
 void WindowManager::ApplyPassThroughMode()
@@ -509,6 +589,8 @@ void WindowManager::ApplyScreenInset()
         return;
     }
 
+    RefreshMonitorMetrics();
+
     const int inset = AppState::ClampInt(m_appState->settings.screenInsetPixels, 0, (std::min)(m_appState->monitorWidth, m_appState->monitorHeight) / 3);
     const int width = (std::max)(1, m_appState->monitorWidth - inset * 2);
     const int height = (std::max)(1, m_appState->monitorHeight - inset * 2);
@@ -518,6 +600,12 @@ void WindowManager::ApplyScreenInset()
     m_appState->windowLeft = left;
     m_appState->windowTop = top;
     SetWindowPos(m_hwnd, HWND_TOPMOST, left, top, width, height, SWP_NOACTIVATE);
+    m_appState->clientWidth = width;
+    m_appState->clientHeight = height;
+    m_appState->UpdateMarginsFromSettings();
+    UpdateWindowRegion();
+    m_appState->hdrActive = m_renderer->RefreshHDRState(m_hwnd);
+    m_appState->renderNeeded = true;
 }
 
 void WindowManager::SetTargetNits(float nits)
@@ -707,6 +795,16 @@ void WindowManager::OnIpcCommand(IpcCommand* command)
     {
         SetLanguage(scopedCommand->languageValue);
     }
+    else if (key == L"themeMode" && scopedCommand->valueType == IpcValueType::ThemeMode)
+    {
+        m_appState->settings.themeMode = scopedCommand->themeModeValue;
+        SaveCurrentSettings();
+    }
+    else if (key == L"backdropKind" && scopedCommand->valueType == IpcValueType::BackdropKind)
+    {
+        m_appState->settings.backdropKind = scopedCommand->backdropKindValue;
+        SaveCurrentSettings();
+    }
 }
 
 bool WindowManager::IsCursorOverFrame() const
@@ -835,11 +933,17 @@ void WindowManager::OnCommand(UINT commandId)
 
 void WindowManager::OnSize(int width, int height)
 {
+    if (width <= 0 || height <= 0)
+    {
+        return;
+    }
+
     m_appState->clientWidth = width;
     m_appState->clientHeight = height;
-    m_appState->UpdateHoleRect();
+    m_appState->UpdateMarginsFromSettings();
 
     m_renderer->Resize(width, height);
+    m_appState->hdrActive = m_renderer->IsHDRSupported();
     UpdateWindowRegion();
 
     m_appState->renderNeeded = true;
@@ -852,6 +956,9 @@ void WindowManager::OnDestroy()
 
 int WindowManager::Run()
 {
+    m_appState->rendererReady = false;
+    m_appState->hdrActive = false;
+
     // Initialize renderer first (before showing window)
     if (!m_renderer->Initialize(m_hwnd, m_appState->clientWidth, m_appState->clientHeight))
     {
@@ -859,14 +966,14 @@ int WindowManager::Run()
         return 1;
     }
 
-    m_appState->hdrActive = m_renderer->IsHDRSupported();
-
     // Apply initial region BEFORE showing window
     UpdateWindowRegion();
 
     // NOW show window
     ShowWindow(m_hwnd, SW_SHOW);
     UpdateWindow(m_hwnd);
+    m_appState->hdrActive = m_renderer->RefreshHDRState(m_hwnd);
+    m_appState->rendererReady = true;
 
     // Force initial render
     m_appState->renderNeeded = true;
@@ -935,6 +1042,11 @@ LRESULT CALLBACK WindowManager::WindowProc(HWND hwnd, UINT message, WPARAM wPara
 
     case WM_SIZE:
         pThis->OnSize(LOWORD(lParam), HIWORD(lParam));
+        return 0;
+
+    case WM_DISPLAYCHANGE:
+    case WM_DPICHANGED:
+        pThis->ApplyScreenInset();
         return 0;
 
     case WM_HOTKEY:

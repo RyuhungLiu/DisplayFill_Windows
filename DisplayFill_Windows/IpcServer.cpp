@@ -263,6 +263,60 @@ namespace
         }
     }
 
+    AppThemeMode ParseThemeMode(std::string_view value)
+    {
+        if (value == "light")
+        {
+            return AppThemeMode::Light;
+        }
+        if (value == "dark")
+        {
+            return AppThemeMode::Dark;
+        }
+        return AppThemeMode::System;
+    }
+
+    const char* ThemeModeToString(AppThemeMode mode)
+    {
+        switch (mode)
+        {
+        case AppThemeMode::Light:
+            return "light";
+        case AppThemeMode::Dark:
+            return "dark";
+        case AppThemeMode::System:
+        default:
+            return "system";
+        }
+    }
+
+    AppBackdropKind ParseBackdropKind(std::string_view value)
+    {
+        if (value == "mica")
+        {
+            return AppBackdropKind::Mica;
+        }
+        if (value == "solid")
+        {
+            return AppBackdropKind::Solid;
+        }
+        return AppBackdropKind::Acrylic;
+    }
+
+    const char* BackdropKindToString(AppBackdropKind kind)
+    {
+        switch (kind)
+        {
+        case AppBackdropKind::Mica:
+            return "mica";
+        case AppBackdropKind::Solid:
+            return "solid";
+        case AppBackdropKind::Acrylic:
+        default:
+            return "acrylic";
+        }
+    }
+
     void CopyKey(wchar_t (&destination)[64], const std::string& key)
     {
         const int size = MultiByteToWideChar(CP_UTF8, 0, key.c_str(), -1, destination, static_cast<int>(std::size(destination)));
@@ -452,6 +506,9 @@ std::string IpcServer::BuildStateJson() const
         << "\"startupBreathDurationSeconds\":" << settings.startupBreathDurationSeconds << ","
         << "\"passThroughMode\":" << (settings.passThroughMode ? "true" : "false") << ","
         << "\"language\":\"" << LanguageToString(settings.language) << "\"," 
+        << "\"themeMode\":\"" << ThemeModeToString(settings.themeMode) << "\","
+        << "\"backdropKind\":\"" << BackdropKindToString(settings.backdropKind) << "\","
+        << "\"rendererReady\":" << (m_appState->rendererReady ? "true" : "false") << ","
         << "\"hdrActive\":" << (m_appState->hdrActive ? "true" : "false")
         << "}";
     return json.str();
@@ -509,6 +566,30 @@ bool IpcServer::TryCreateCommand(const std::string& message, IpcCommand& command
         }
         command.valueType = IpcValueType::Language;
         command.languageValue = ParseLanguage(value);
+        return true;
+    }
+
+    if (key == "themeMode")
+    {
+        std::string value;
+        if (!ExtractStringValue(message, "value", value))
+        {
+            return false;
+        }
+        command.valueType = IpcValueType::ThemeMode;
+        command.themeModeValue = ParseThemeMode(value);
+        return true;
+    }
+
+    if (key == "backdropKind")
+    {
+        std::string value;
+        if (!ExtractStringValue(message, "value", value))
+        {
+            return false;
+        }
+        command.valueType = IpcValueType::BackdropKind;
+        command.backdropKindValue = ParseBackdropKind(value);
         return true;
     }
 

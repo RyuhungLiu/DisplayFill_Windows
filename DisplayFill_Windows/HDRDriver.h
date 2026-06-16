@@ -16,6 +16,7 @@
 #include <shellapi.h>
 #include <wrl/client.h>
 
+#include <algorithm>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -48,12 +49,11 @@ constexpr float kSdrReferenceWhiteNits = 80.0f;
 // 如果屏幕太刺眼，请先降低这个值，而不是降低窗口透明度。
 constexpr float kDefaultTargetNits = 1000.0f;
 
-// 相框左右边距比例。0.08 表示按当前主显示器物理宽度取 8%。
-// 例如 1920 宽度时，左右各约 154 像素。
+// 相框左右边距比例。0.08 表示按当前主显示器物理高度取 8%。
+// 例如 1080 高度时，左右各约 86 像素。
 constexpr float kFrameMarginXRatio = 0.08f;
 
-// 相框上下边距比例。0.08 表示按当前主显示器物理高度取 8%。
-// 例如 1080 高度时，上下各约 86 像素。
+// 相框上下边距比例。与左右边距一样按当前主显示器物理高度取百分比。
 constexpr float kFrameMarginYRatio = 0.08f;
 
 // 中间挖空区域的圆角半径，单位像素。数值越大，圆角越明显。
@@ -130,6 +130,20 @@ enum class AppLanguage
     EnUs,
 };
 
+enum class AppThemeMode
+{
+    System,
+    Light,
+    Dark,
+};
+
+enum class AppBackdropKind
+{
+    Acrylic,
+    Mica,
+    Solid,
+};
+
 // 运行时设置。托盘菜单会直接修改这里的值，因此这些参数不再只依赖 constexpr。
 struct AppSettings
 {
@@ -153,6 +167,8 @@ struct AppSettings
     float startupBreathDurationSeconds = kStartupBreathDurationSeconds;
     bool passThroughMode = true;
     AppLanguage language = AppLanguage::ZhHans;
+    AppThemeMode themeMode = AppThemeMode::System;
+    AppBackdropKind backdropKind = AppBackdropKind::Acrylic;
 };
 
 //=============================================================================
@@ -176,6 +192,8 @@ enum class IpcValueType
     Number,
     Boolean,
     Language,
+    ThemeMode,
+    BackdropKind,
 };
 
 struct IpcCommand
@@ -186,6 +204,8 @@ struct IpcCommand
     double numberValue = 0.0;
     bool boolValue = false;
     AppLanguage languageValue = AppLanguage::ZhHans;
+    AppThemeMode themeModeValue = AppThemeMode::System;
+    AppBackdropKind backdropKindValue = AppBackdropKind::Acrylic;
 };
 
 //=============================================================================
@@ -198,6 +218,7 @@ struct AppState
 
     // HDR Rendering
     bool hdrActive = false;
+    bool rendererReady = false;
 
     // Rendering control
     bool renderNeeded = true;
@@ -234,6 +255,7 @@ struct AppState
     // Clamp helper for ints
     static int ClampInt(int value, int minVal, int maxVal)
     {
+        if (maxVal < minVal) return minVal;
         if (value < minVal) return minVal;
         if (value > maxVal) return maxVal;
         return value;
@@ -277,11 +299,14 @@ struct AppState
             return;
         }
 
-        const int sourceWidth = monitorWidth > 0 ? monitorWidth : clientWidth;
         const int sourceHeight = monitorHeight > 0 ? monitorHeight : clientHeight;
-        marginLeft = ClampInt(static_cast<int>(static_cast<float>(sourceWidth) * settings.frameMarginXRatio), 1, clientWidth / 2 - 1);
+        const int maxHorizontalMargin = (std::max)(0, clientWidth / 2 - 1);
+        const int maxVerticalMargin = (std::max)(0, clientHeight / 2 - 1);
+        const int minHorizontalMargin = maxHorizontalMargin > 0 ? 1 : 0;
+        const int minVerticalMargin = maxVerticalMargin > 0 ? 1 : 0;
+        marginLeft = ClampInt(static_cast<int>(static_cast<float>(sourceHeight) * settings.frameMarginXRatio), minHorizontalMargin, maxHorizontalMargin);
         marginRight = marginLeft;
-        marginTop = ClampInt(static_cast<int>(static_cast<float>(sourceHeight) * settings.frameMarginYRatio), 1, clientHeight / 2 - 1);
+        marginTop = ClampInt(static_cast<int>(static_cast<float>(sourceHeight) * settings.frameMarginYRatio), minVerticalMargin, maxVerticalMargin);
         marginBottom = marginTop;
         UpdateHoleRect();
         renderNeeded = true;
@@ -302,6 +327,7 @@ public:
     void Shutdown();
 
     void Resize(int width, int height);
+    bool RefreshHDRState(HWND hwnd = nullptr);
     void Render(const AppState& state);
     bool IsStartupBreathingActive(const AppState& state) const;
     bool IsHDRSupported() const { return m_hdrActive; }
@@ -350,6 +376,7 @@ public:
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam);
 
+    bool RefreshMonitorMetrics();
     bool CreateMainWindow(HINSTANCE instance);
 
     void UpdateWindowRegion();
@@ -388,6 +415,7 @@ private:
     BYTE m_opacityTargetAlpha = kNormalWindowAlpha;
     ULONGLONG m_opacityTransitionStartTick = 0;
     NOTIFYICONDATAW m_trayIconData = {};
+    HICON m_trayIconHandle = nullptr;
     bool m_trayIconAdded = false;
     std::unique_ptr<IpcServer> m_ipcServer;
 
@@ -424,6 +452,7 @@ private:
 
 void PrintLastError(const char* message, HRESULT hr);
 void EnsureConsole();
+void SetSettingsWindowHandle(HWND hwnd);
 void LoadSettingsFromIni(AppSettings& settings);
 void SaveSettingsToIni(const AppSettings& settings);
 std::string ReadSettingsIniUtf8();
